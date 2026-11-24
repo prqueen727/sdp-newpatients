@@ -151,6 +151,29 @@ table.x tr:last-child td,table.x tr:last-child th{border-bottom:0}
 .empty{padding:36px 20px;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center}
 .samplebanner{background:repeating-linear-gradient(135deg,var(--accent-soft) 0 10px,var(--surface) 10px 20px);border:1px dashed var(--accent);padding:10px 14px;border-radius:8px;font-size:13px;font-weight:500;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .foot{font-size:12px;color:var(--muted)}
+/* 소개 관리 */
+.tabs{overflow-x:auto;max-width:100%}
+.txt{padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);min-width:0;flex:1 1 140px}
+.txt.wide{width:100%;flex:none}
+.refbox{border:1px dashed var(--accent);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.refgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:760px){.refgrid{grid-template-columns:minmax(0,1fr)}}
+.picklist{display:flex;flex-direction:column;gap:6px}
+.pick{text-align:left;border:1px solid var(--line);background:var(--surface);padding:8px 12px;border-radius:8px;cursor:pointer;font-size:14px}
+.pick:hover{border-color:var(--accent)}
+.pick small{color:var(--muted);margin-left:6px}
+.linkbtn{border:0;background:none;color:var(--accent);cursor:pointer;padding:2px 0;font-weight:500;text-decoration:underline;text-underline-offset:3px;text-align:left}
+.hint{font-size:13px;color:var(--muted)}
+.hint.bad{color:var(--bad);font-weight:500}
+.tree{list-style:none;margin:4px 0 0;padding-left:18px;border-left:2px solid var(--line)}
+.tree li{padding:3px 0}
+.chain{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:14px}
+table.x.list td,table.x.list th{text-align:left}
+table.x.list tbody tr:hover td{background:var(--sunk)}
+.searchwrap{position:relative;flex:1 1 220px;min-width:0;max-width:340px}
+.searchwrap .picklist{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:6;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px;box-shadow:0 6px 20px rgba(0,0,0,.12)}
+.searchwrap .picklist:empty{display:none}
+.detail{border:2px solid var(--accent)}
 body.pdf .wrap{max-width:1000px;width:1000px}
 body.pdf [data-noprint]{display:none!important}
 body.pdf .tablewrap{overflow:visible}
@@ -206,6 +229,7 @@ window.APP_CONFIG = {
         <button class="tab" role="tab" data-view="input">초진 입력</button>
         <button class="tab" role="tab" data-view="monthly">월간 통계</button>
         <button class="tab" role="tab" data-view="annual">연간 통계</button>
+        <button class="tab" role="tab" data-view="referral">소개 관리</button>
       </nav>
       <button class="logout" id="logout">로그아웃</button>
     </div>
@@ -231,6 +255,8 @@ const REGIONS = [
 ];
 const MOTIVES = ["지인 소개","간판","지나가다","전단지","거주지","버스광고","인터넷 검색","AI 검색","기타"];
 const CLINICS = ["도수치료","수술후 재활","주사/수액","한약/보약","다이어트","소화불량","여성질환","예방접종","척추질환","관절질환","안면마비","교통사고","기타"];
+const RELATIONS = ["가족","친구·지인","직장 동료","이웃","기존 환자끼리","기타"];
+const REF_MOTIVE = "지인 소개";
 const RKEYS = REGIONS.map(r=>r.key);
 const rLabel = k => (REGIONS.find(r=>r.key===k)||{label:k}).label;
 
@@ -261,8 +287,15 @@ const S = {
   sample:{monthly:false, annual:false},
   crossLevel: store.get("crossLevel")==="dong" ? "dong" : "group",
   pctMode: ["row","col","all"].includes(store.get("pctMode")) ? store.get("pctMode") : "row",
-  confirmDel:null, saving:false, pdfBusy:false, loadErr:null
+  confirmDel:null, saving:false, pdfBusy:false, loadErr:null,
+  // 소개 관리
+  people:[], referrals:[], refLoaded:false, refErr:null,
+  rf:null, rf2:null,              // rf = 초진 입력 화면의 소개 칸, rf2 = 소개 관리의 직접 등록
+  refSel:null, refSearch:"", refForm:false, refEdit:false, refConfirmDel:null, refSaving:false,
+  maskNames: store.get("maskNames")!=="0"
 };
+function newRf(){ return {chart:"", name:"", referrerId:null, newRef:false, rChart:"", rName:"", relation:"", search:"", date:localDate(), memo:""}; }
+S.rf=newRf(); S.rf2=newRf();
 
 // ---------- Supabase ----------
 const C = window.APP_CONFIG||{};
@@ -303,8 +336,66 @@ async function loadToday(){
   S.todayLoaded=true; render();
 }
 const authErr = e => e && (e.status===401 || /JWT|auth/i.test(e.message||""));
+
+// ---------- 소개 데이터 ----------
+async function fetchAll(table){
+  let all=[], page=0;
+  for(;;){
+    const {data,error}=await sb.from(table).select("*").order("created_at").range(page*1000, page*1000+999);
+    if(error) throw error;
+    all=all.concat(data); if(data.length<1000) break; page++;
+  }
+  return all;
+}
+async function loadRefData(){
+  try{
+    const [p,r]=await Promise.all([fetchAll("people"), fetchAll("referrals")]);
+    S.people=p; S.referrals=r; S.refLoaded=true; S.refErr=null;
+  }catch(e){
+    S.refErr = /relation|does not exist|schema cache/i.test((e&&e.message)||"") ? "소개 관리 표가 아직 없습니다. 관리자가 Supabase에서 referral.sql을 실행해야 합니다." : "소개 기록을 불러오지 못했습니다. 새로고침을 눌러 주세요.";
+  }
+  render();
+}
+function refIdx(){
+  const byId={}, kids={}, parent={};
+  S.people.forEach(p=>byId[p.id]=p);
+  S.referrals.forEach(r=>{ (kids[r.referrer_id]=kids[r.referrer_id]||[]).push(r); parent[r.referred_id]=r; });
+  Object.values(kids).forEach(a=>a.sort((x,y)=>String(x.referred_date).localeCompare(String(y.referred_date))));
+  return {byId, kids, parent};
+}
+function mask(n){ const c=[...String(n||"")]; if(c.length<=1) return c.join(""); if(c.length===2) return c[0]+"*"; return c[0]+"*".repeat(c.length-2)+c[c.length-1]; }
+const shown = p => p ? (S.maskNames? mask(p.name) : p.name) : "(삭제됨)";
+function descCount(id, kids, seen=new Set()){ let n=0; for(const r of (kids[id]||[])){ if(seen.has(r.referred_id)) continue; seen.add(r.referred_id); n+=1+descCount(r.referred_id,kids,seen); } return n; }
+function personByChart(c){ c=String(c||"").trim(); return c? S.people.find(p=>p.chart_no===c) : null; }
+function rfStatus(st){
+  const filled = st.chart.trim()||st.name.trim()||st.referrerId||st.rChart.trim()||st.rName.trim()||st.relation;
+  if(!filled) return {s:"none"};
+  const sel = st.referrerId && S.people.find(p=>p.id===st.referrerId);
+  const refChart = sel ? sel.chart_no : st.rChart.trim();
+  if(st.chart.trim() && refChart && st.chart.trim()===refChart) return {s:"bad", msg:"환자와 소개자의 차트번호가 같습니다."};
+  const ex = personByChart(st.chart);
+  if(ex && S.referrals.some(r=>r.referred_id===ex.id)) return {s:"bad", msg:"이 차트번호는 이미 소개 기록이 있습니다."};
+  const miss=[]; if(!st.chart.trim()) miss.push("환자 차트번호"); if(!st.name.trim() && !ex) miss.push("환자 이름");
+  if(!sel && !(st.rChart.trim() && (st.rName.trim()||personByChart(st.rChart)))) miss.push("소개자");
+  if(!st.relation) miss.push("관계");
+  return miss.length? {s:"partial", miss} : {s:"ok"};
+}
+async function addReferral(st, date, visitId){
+  const sel = st.referrerId && S.people.find(p=>p.id===st.referrerId);
+  const exRef = !sel && personByChart(st.rChart), exPat = personByChart(st.chart);
+  const {error}=await sb.rpc("add_referral",{
+    p_referred_chart: st.chart.trim(), p_referred_name: st.name.trim() || (exPat? exPat.name : ""),
+    p_referrer_chart: sel? sel.chart_no : st.rChart.trim(), p_referrer_name: sel? sel.name : (st.rName.trim() || (exRef? exRef.name : "")),
+    p_relation: st.relation, p_date: date, p_visit_id: visitId||null, p_memo: (st.memo||"").trim()});
+  if(error){
+    const m=error.message||"";
+    return /DUP_REFERRED/.test(m) ? "이 환자는 이미 소개 기록이 있습니다." : /SELF/.test(m) ? "환자와 소개자가 같은 사람입니다." : /function|schema cache/i.test(m) ? "소개 관리 표가 아직 없습니다 (referral.sql 실행 필요)." : "저장하지 못했습니다. 다시 시도해 주세요.";
+  }
+  await loadRefData();
+  return null;
+}
 function invalidate(date){ delete S.cache["m:"+ymOf(date)]; delete S.cache["y:"+date.slice(0,4)]; delete S.cache["m:"+shiftYm(ymOf(date),1)]; }
-function refresh(){ S.cache={}; S.prevCount={}; ensureData(); render(); }
+function refresh(){ S.cache={}; S.prevCount={}; ensureData(); if(sb) loadRefData(); render(); }
 function ensureData(){
   if(!sb) return;
   if(S.view==="monthly" && !S.sample.monthly) load("m:"+S.ym);
@@ -440,14 +531,57 @@ function dongCharts(A, total){
 }
 
 // ---------- 입력 화면 ----------
-function renderInput(){
+const chip=(group,val,label,on,cls,k)=>`<button class="chip${cls?" "+cls:""}" data-g="${group}" data-v="${esc(val)}"${k?` data-k="${k}"`:""} aria-pressed="${on}">${esc(label)}</button>`;
+function inputState(){
   const f=S.form, reg=REGIONS.find(r=>r.key===f.group);
-  const ok = f.type && f.group && (!reg.req || f.detail) && f.motives.length && f.clinics.length;
+  const baseOk = f.type && f.group && (!reg.req || f.detail) && f.motives.length && f.clinics.length;
   const missing=[]; if(!f.type) missing.push("내원 종류");
   if(!f.group) missing.push("지역"); else if(reg.req && !f.detail) missing.push(reg.key+" 동");
   if(!f.motives.length) missing.push("내원 동기"); if(!f.clinics.length) missing.push("클리닉");
-  const summary = ok ? `${esc(f.type)} / ${esc(rLabel(f.group))}${f.detail?" · "+esc(f.detail):""} / ${esc(f.motives.join(", "))} / ${esc(f.clinics.join(", "))}` : "선택 필요: "+esc(missing.join(", "));
-  const chip=(group,val,label,on,cls)=>`<button class="chip${cls?" "+cls:""}" data-g="${group}" data-v="${esc(val)}" aria-pressed="${on}">${esc(label)}</button>`;
+  const useRf = f.motives.includes(REF_MOTIVE) && S.refLoaded;
+  const rs = useRf ? rfStatus(S.rf) : {s:"none"};
+  let summary = baseOk ? `${esc(f.type)} / ${esc(rLabel(f.group))}${f.detail?" · "+esc(f.detail):""} / ${esc(f.motives.join(", "))} / ${esc(f.clinics.join(", "))}` : "선택 필요: "+esc(missing.join(", "));
+  if(useRf && baseOk){
+    if(rs.s==="ok") summary += " · <b>소개 기록 함께 저장</b>";
+    else if(rs.s==="none") summary += " · 소개 정보 없이 저장 (나중에 소개 관리에서 등록 가능)";
+    else if(rs.s==="partial") summary = "소개 정보 입력 필요: "+esc(rs.miss.join(", "))+" · 또는 소개 칸을 비우면 초진만 저장됩니다";
+    else summary = `<span class="hint bad">${esc(rs.msg)}</span>`;
+  }
+  return {ok: baseOk && (rs.s==="none"||rs.s==="ok"), summary};
+}
+function rfResults(k){
+  const st=S[k], q=st.search.trim();
+  if(!q) return `<div class="hint">이름 일부나 차트번호를 입력하면 등록된 분이 나옵니다. 처음 소개하는 분이면 <button class="linkbtn" data-rf="new" data-k="${k}">새로 등록</button></div>`;
+  const {kids}=refIdx(), ql=q.toLowerCase();
+  const hits=S.people.filter(p=>p.name.toLowerCase().includes(ql)||p.chart_no.includes(q)).slice(0,6);
+  return hits.map(p=>`<button class="pick" data-rf="pick" data-id="${esc(p.id)}" data-k="${k}">${esc(p.name)} · ${esc(p.chart_no)}<small>${(kids[p.id]||[]).length?"지금까지 "+kids[p.id].length+"명 소개":"소개 이력 없음"}</small></button>`).join("")
+    + `<div class="hint">${hits.length?"":"찾는 분이 없습니다. "}<button class="linkbtn" data-rf="new" data-k="${k}">처음 소개하는 분으로 새로 등록</button></div>`;
+}
+function rHint(st,k){ const ex=personByChart(st.rChart); return ex ? `이미 등록된 분입니다: <b>${esc(ex.name)}</b> <button class="linkbtn" data-rf="pick" data-id="${esc(ex.id)}" data-k="${k}">이 분으로 선택</button>` : ""; }
+function pHint(st){
+  const ex=personByChart(st.chart); if(!ex) return "";
+  return S.referrals.some(r=>r.referred_id===ex.id) ? `<span class="hint bad">이 차트번호는 이미 소개 기록이 있습니다 (${esc(ex.name)})</span>` : `등록된 분입니다: <b>${esc(ex.name)}</b> (이름은 비워도 됩니다)`;
+}
+function refForm(k, withDate){
+  const st=S[k], sel=st.referrerId && S.people.find(p=>p.id===st.referrerId), {kids}=refIdx();
+  let refPart;
+  if(sel) refPart=`<div class="row"><span class="tag r" style="font-size:14px;padding:4px 10px">${esc(sel.name)} · ${esc(sel.chart_no)}</span><span class="hint">지금까지 ${(kids[sel.id]||[]).length}명 소개</span><button class="btn" data-rf="clear" data-k="${k}">변경</button></div>`;
+  else if(st.newRef) refPart=`<div class="row"><input class="txt" id="${k}-rchart" data-k="${k}" data-f="rChart" placeholder="소개자 차트번호" value="${esc(st.rChart)}" autocomplete="off"><input class="txt" id="${k}-rname" data-k="${k}" data-f="rName" placeholder="소개자 이름" value="${esc(st.rName)}" autocomplete="off"></div>
+      <div class="hint" id="${k}-rhint">${rHint(st,k)}</div><button class="linkbtn" data-rf="search" data-k="${k}">← 등록된 분에서 찾기</button>`;
+  else refPart=`<input class="txt wide" id="${k}-search" data-k="${k}" data-f="search" placeholder="소개자 이름 또는 차트번호로 찾기" value="${esc(st.search)}" autocomplete="off"><div class="picklist" id="${k}-results">${rfResults(k)}</div>`;
+  return `<div class="refgrid">
+      <div class="sublist"><span class="lbl">${withDate?"소개받은 분":"이 환자 (소개받은 분)"}</span>
+        <div class="row"><input class="txt" id="${k}-chart" data-k="${k}" data-f="chart" placeholder="차트번호" value="${esc(st.chart)}" autocomplete="off"><input class="txt" id="${k}-name" data-k="${k}" data-f="name" placeholder="이름" value="${esc(st.name)}" autocomplete="off"></div>
+        <div class="hint" id="${k}-phint">${pHint(st)}</div></div>
+      <div class="sublist"><span class="lbl">소개해 준 분</span>${refPart}</div>
+    </div>
+    <div class="field" style="gap:8px"><span class="lbl">관계</span><div class="chips">${RELATIONS.map(r=>chip("relation",r,r,st.relation===r,"sm",k)).join("")}</div></div>
+    ${withDate?`<div class="row"><label class="row" style="gap:8px"><span class="lbl">소개일(내원일)</span><input type="date" class="dateinp" id="${k}-date" data-k="${k}" data-f="date" value="${esc(st.date)}" max="${localDate()}"></label>
+      <input class="txt" id="${k}-memo" data-k="${k}" data-f="memo" placeholder="메모 (선택)" value="${esc(st.memo)}"></div>`:""}`;
+}
+function renderInput(){
+  const f=S.form, reg=REGIONS.find(r=>r.key===f.group);
+  const {ok, summary}=inputState();
 
   const todayRows = S.today.map((d,i)=>`
     <div class="trow"><span class="n">${i+1}</span>
@@ -459,7 +593,7 @@ function renderInput(){
 
   $("#main").innerHTML = `
     <div class="row" style="justify-content:space-between;align-items:flex-end">
-      <div><h1>초진 입력</h1><div class="sub">초진 1명당 1건씩 입력하세요. 환자 이름 등 개인정보는 저장하지 않습니다.</div></div>
+      <div><h1>초진 입력</h1><div class="sub">초진 1명당 1건씩 입력하세요. 초진 통계는 이름 없이 저장되고, ‘지인 소개’ 환자의 소개 정보만 소개 관리에 따로 저장됩니다.</div></div>
       <div class="row" style="gap:8px">
         <label class="row" style="gap:8px"><span class="lbl">내원일</span><input type="date" id="f-date" class="dateinp" value="${esc(f.date)}" max="${localDate()}"></label>
         ${f.date!==localDate()?`<button class="btn" id="f-today">오늘로</button>`:""}
@@ -480,13 +614,17 @@ function renderInput(){
       <div class="field">
         <div class="field-head"><h2>3. 내원 동기</h2><span class="sub">복수 선택 가능</span></div>
         <div class="chips big">${MOTIVES.map(m=>chip("motive",m,m,f.motives.includes(m))).join("")}</div>
+        ${f.motives.includes(REF_MOTIVE) ? `<div class="refbox">
+          <div class="field-head"><h2>소개 정보</h2><span class="sub">비워 두면 초진만 저장되고, 나중에 ‘소개 관리’에서 등록할 수 있습니다</span></div>
+          ${S.refLoaded ? refForm("rf",false) : `<div class="hint ${S.refErr?"bad":""}">${esc(S.refErr||"소개 기록 불러오는 중…")}</div>`}
+        </div>`:""}
       </div>
       <div class="field">
         <div class="field-head"><h2>4. 클리닉 및 진료</h2><span class="sub">복수 선택 가능</span></div>
         <div class="chips big">${CLINICS.map(c=>chip("clinic",c,c,f.clinics.includes(c))).join("")}</div>
       </div>
       <div class="savebar">
-        <div class="summary">${summary}</div>
+        <div class="summary" id="f-summary">${summary}</div>
         <button class="btn" id="f-reset">초기화</button>
         <button class="btn primary" id="f-save" ${(!ok||S.saving)?"disabled":""}>${S.saving?"저장 중…":"초진 저장"}</button>
       </div>
@@ -551,6 +689,7 @@ function renderMonthly(){
       ${barChart("클리닉 및 진료", sortDesc(A.clinic,CLINICS), N, "복수 선택 포함")}
     </div>
     <div class="grid2">${dongCharts(A,N)}</div>
+    ${refStats()}
     ${crossSections(docs)}
     ${FOOT()}`;
 }
@@ -584,6 +723,7 @@ function renderAnnual(){
       ${barChart("클리닉 및 진료", sortDesc(A.clinic,CLINICS), N, "복수 선택 포함")}
     </div>
     <div class="grid2">${dongCharts(A,N)}</div>
+    ${refStats()}
     ${crossSections(docs)}
     ${heatTable("내원종류 × 월", cross(docs,d=>[d.visitType],moF), TYPES, monthCols, "내원종류", "월", "월별 외래·입원 추이")}
     ${heatTable("내원동기 × 월", cross(docs,d=>d.motives,moF), MOTIVES, monthCols, "내원동기", "월", "채널별 계절성 — 광고 집행 시기 판단")}
@@ -591,9 +731,134 @@ function renderAnnual(){
     ${FOOT()}`;
 }
 
+// ---------- 통계 화면의 소개 현황 (이름 없음) ----------
+function refStats(){
+  if(!S.refLoaded || S.sample[S.view]) return "";
+  const pre = S.view==="monthly" ? S.ym : String(S.year);
+  const rs = S.referrals.filter(r=>String(r.referred_date).startsWith(pre));
+  if(!rs.length) return "";
+  const rel={}; RELATIONS.forEach(k=>rel[k]=0); rs.forEach(r=>rel[r.relation]=(rel[r.relation]||0)+1);
+  const givers=new Set(rs.map(r=>r.referrer_id));
+  const {kids}=refIdx(); const repeat=[...givers].filter(id=>(kids[id]||[]).length>=2).length;
+  return `<div class="grid2">
+    <section class="card chart" data-pdf><div class="chart-head"><h2>소개 현황</h2><span class="sub">소개 관리에 등록된 건 기준</span></div>
+      <div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="kpi"><span class="lbl">소개 등록</span><span class="v">${rs.length}건</span></div>
+        <div class="kpi"><span class="lbl">소개해 준 분</span><span class="v">${givers.size}명</span><span class="s">누적 2명 이상 소개 ${repeat}명</span></div>
+      </div></section>
+    ${barChart("소개 관계", sortDesc(rel,RELATIONS), rs.length, "소개 건수 대비 %")}
+  </div>`;
+}
+
+// ---------- 소개 관리 화면 ----------
+function refSearchResults(){
+  const q=S.refSearch.trim(); if(!q) return "";
+  const ql=q.toLowerCase(), {kids}=refIdx();
+  const hits=S.people.filter(p=>p.name.toLowerCase().includes(ql)||p.chart_no.includes(q)).slice(0,8);
+  return hits.length ? hits.map(p=>`<button class="pick" data-ref-sel="${esc(p.id)}">${esc(p.name)} · ${esc(p.chart_no)}<small>${(kids[p.id]||[]).length}명 소개</small></button>`).join("") : `<div class="hint" style="padding:6px">찾는 분이 없습니다</div>`;
+}
+function refTree(id, kids, byId, depth, seen){
+  const ch=kids[id]||[]; if(!ch.length || depth>10) return "";
+  return `<ul class="tree">${ch.map(r=>{ if(seen.has(r.referred_id)) return ""; seen.add(r.referred_id); const c=byId[r.referred_id];
+    return `<li><button class="linkbtn" data-ref-sel="${esc(r.referred_id)}">${esc(shown(c))}</button> <span class="hint">${esc(c?c.chart_no:"")} · ${esc(r.referred_date)} · ${esc(r.relation)}</span>${refTree(r.referred_id,kids,byId,depth+1,seen)}</li>`; }).join("")}</ul>`;
+}
+function refDetail(I){
+  const p=I.byId[S.refSel]; if(!p) return "";
+  const up=[]; let cur=I.parent[p.id], guard=0;
+  while(cur && guard++<10){ up.unshift(cur); cur=I.parent[cur.referrer_id]; }
+  const direct=(I.kids[p.id]||[]).length, all=descCount(p.id,I.kids);
+  const chain = up.length ? `<div class="chain"><span class="lbl">소개 경로</span>${up.map(r=>`<button class="linkbtn" data-ref-sel="${esc(r.referrer_id)}">${esc(shown(I.byId[r.referrer_id]))}</button><span class="hint">→ (${esc(r.relation)})</span>`).join("")}<b>${esc(shown(p))}</b></div>` : `<div class="hint">이 분을 소개해 준 기록은 없습니다.</div>`;
+  const nameRow = S.refEdit
+    ? `<div class="row"><input class="txt" id="ref-edit-name" value="${esc(p.name)}" style="max-width:220px"><button class="btn primary sm" id="ref-edit-save">이름 저장</button><button class="btn" id="ref-edit-cancel">취소</button></div>`
+    : `<div class="row"><h2 style="font-size:22px">${esc(shown(p))}</h2><span class="tag">차트 ${esc(p.chart_no)}</span><button class="linkbtn" id="ref-edit">이름 수정</button></div>`;
+  return `<section class="card chart detail">
+    <div class="chart-head">${nameRow}<button class="btn" id="ref-close">닫기</button></div>
+    <div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+      <div class="kpi"><span class="lbl">직접 소개</span><span class="v">${direct}명</span></div>
+      <div class="kpi"><span class="lbl">연쇄 포함 소개</span><span class="v">${all}명</span><span class="s">소개받은 분이 다시 소개한 경우까지</span></div>
+    </div>
+    ${chain}
+    <div><span class="lbl">이 분이 소개한 분들</span>${direct? refTree(p.id,I.kids,I.byId,0,new Set([p.id])) : `<div class="hint">아직 소개한 분이 없습니다.</div>`}</div>
+  </section>`;
+}
+function renderReferral(){
+  const head = `<div class="statshead">
+      <div class="t"><span class="lbl">성동필한방병원 · 소개환자 관리</span><h1>소개 관리</h1></div>
+      <div class="searchwrap"><input class="txt wide" id="ref-search" placeholder="이름 또는 차트번호로 찾기" value="${esc(S.refSearch)}" autocomplete="off"><div class="picklist" id="ref-search-results">${S.refLoaded?refSearchResults():""}</div></div>
+      <div class="row">
+        <span class="seg"><button data-mask="1" aria-pressed="${S.maskNames}">이름 가리기</button><button data-mask="0" aria-pressed="${!S.maskNames}">이름 보기</button></span>
+        <button class="btn" id="ref-refresh">새로고침</button>
+        <button class="btn" id="ref-csv">CSV</button>
+        <button class="btn primary sm" id="ref-new">소개 직접 등록</button>
+      </div></div>`;
+  if(!S.refLoaded){ $("#main").innerHTML = head + `<div class="card empty"><h2>${esc(S.refErr||"불러오는 중…")}</h2></div>`; return; }
+  const I=refIdx(), total=S.referrals.length, ym=ymOf(localDate());
+  const givers=Object.keys(I.kids), month=S.referrals.filter(r=>String(r.referred_date).startsWith(ym)).length;
+  const form = S.refForm ? `<section class="card chart"><div class="chart-head"><h2>소개 직접 등록</h2><span class="sub">초진 때 못 넣은 소개나 지난 기록을 넣을 때 씁니다</span></div>
+      ${refForm("rf2",true)}
+      <div class="savebar"><div class="summary" id="rf2-msg">${rf2Msg()}</div><button class="btn" id="rf2-cancel">닫기</button><button class="btn primary" id="rf2-save" ${rfStatus(S.rf2).s==="ok"&&!S.refSaving?"":"disabled"}>${S.refSaving?"저장 중…":"소개 저장"}</button></div></section>` : "";
+  if(!total){
+    $("#main").innerHTML = head + form + `<div class="card empty"><h2>아직 소개 기록이 없습니다</h2>
+      <div class="sub">초진 입력에서 내원 동기로 ‘지인 소개’를 고르면 소개 칸이 열립니다. 지난 기록은 ‘소개 직접 등록’으로 넣을 수 있습니다.</div></div>`;
+    return;
+  }
+  const rank = givers.map(id=>({id, n:I.kids[id].length, all:descCount(id,I.kids), last:I.kids[id][I.kids[id].length-1].referred_date}))
+    .sort((a,b)=>b.n-a.n || b.all-a.all || String(b.last).localeCompare(String(a.last))).slice(0,30);
+  const rel={}; RELATIONS.forEach(k=>rel[k]=0); S.referrals.forEach(r=>rel[r.relation]=(rel[r.relation]||0)+1);
+  const recent = S.referrals.slice().sort((a,b)=>String(b.referred_date).localeCompare(String(a.referred_date))||String(b.created_at).localeCompare(String(a.created_at))).slice(0,40);
+  const nm = id => `<button class="linkbtn" data-ref-sel="${esc(id)}">${esc(shown(I.byId[id]))}</button> <span class="hint">${esc((I.byId[id]||{}).chart_no||"")}</span>`;
+  $("#main").innerHTML = head + form + (S.refSel? refDetail(I) : "") + `
+    <div class="kpis">
+      <div class="kpi hero"><span class="lbl">누적 소개</span><span class="v">${total}건</span><span class="s">이번 달 ${month}건</span></div>
+      <div class="kpi"><span class="lbl">소개해 준 분</span><span class="v">${givers.length}명</span><span class="s">2명 이상 소개 ${givers.filter(id=>I.kids[id].length>=2).length}명</span></div>
+      <div class="kpi"><span class="lbl">1인당 평균 소개</span><span class="v">${(total/givers.length).toFixed(1)}명</span></div>
+      <div class="kpi"><span class="lbl">가장 많은 관계</span><span class="v">${esc((top1(rel)||["-"])[0])}</span><span class="s">${top1(rel)?top1(rel)[1]+"건 · "+pct(top1(rel)[1],total)+"%":""}</span></div>
+    </div>
+    <div class="grid2">
+      <section class="card chart"><div class="chart-head"><h2>소개자 순위</h2><span class="sub">이름을 누르면 상세와 소개 연쇄가 보입니다</span></div>
+        <div class="tablewrap"><table class="x list"><thead><tr><th>순위</th><th>소개자</th><th>직접</th><th>연쇄 포함</th><th>최근 소개일</th></tr></thead>
+        <tbody>${rank.map((r,i)=>`<tr><td>${i+1}</td><td>${nm(r.id)}</td><td><b>${r.n}</b></td><td>${r.all}</td><td>${esc(r.last)}</td></tr>`).join("")}</tbody></table></div></section>
+      ${barChart("관계별 소개", sortDesc(rel,RELATIONS), total, "전체 소개 대비 %")}
+    </div>
+    <section class="card chart"><div class="chart-head"><h2>최근 소개 기록</h2><span class="sub">최근 40건</span></div>
+      <div class="tablewrap"><table class="x list"><thead><tr><th>소개일</th><th>소개받은 분</th><th>소개해 준 분</th><th>관계</th><th>메모</th><th></th></tr></thead>
+      <tbody>${recent.map(r=>`<tr><td>${esc(r.referred_date)}</td><td>${nm(r.referred_id)}</td><td>${nm(r.referrer_id)}</td><td>${esc(r.relation)}</td><td class="hint">${esc(r.memo||"")}</td>
+        <td>${S.refConfirmDel===r.id?`<span class="row" style="flex-wrap:nowrap"><button class="btn danger" data-refdel-yes="${esc(r.id)}">삭제</button><button class="btn" data-refdel-no>취소</button></span>`:`<button class="btn" data-refdel="${esc(r.id)}">삭제</button>`}</td></tr>`).join("")}</tbody></table></div></section>
+    <div class="foot">※ 이 화면에는 환자 실명이 나옵니다. 자리를 비울 때는 ‘이름 가리기’나 로그아웃을 해 주세요.</div>`;
+}
+function rf2Msg(){ const s=rfStatus(S.rf2); return s.s==="ok"?"저장할 준비가 됐습니다" : s.s==="none"?"소개받은 분, 소개해 준 분, 관계를 입력하세요" : s.s==="partial"?"입력 필요: "+esc(s.miss.join(", ")) : `<span class="hint bad">${esc(s.msg)}</span>`; }
+async function saveRf2(){
+  if(S.refSaving || rfStatus(S.rf2).s!=="ok") return;
+  S.refSaving=true; render();
+  const err=await addReferral(S.rf2, S.rf2.date||localDate(), null);
+  S.refSaving=false;
+  if(err){ toast(err); render(); return; }
+  S.rf2=newRf(); S.refForm=false; toast("소개 기록을 저장했습니다"); render();
+}
+async function delReferral(id){
+  S.refConfirmDel=null;
+  const {error}=await sb.from("referrals").delete().eq("id",id);
+  toast(error?"삭제하지 못했습니다. 다시 시도해 주세요.":"소개 기록을 삭제했습니다");
+  await loadRefData();
+}
+async function saveName(){
+  const v=($("#ref-edit-name").value||"").trim(); if(!v){ toast("이름을 입력해 주세요"); return; }
+  const {error}=await sb.from("people").update({name:v}).eq("id",S.refSel);
+  if(error){ toast("이름을 바꾸지 못했습니다"); return; }
+  S.refEdit=false; toast("이름을 바꿨습니다"); await loadRefData();
+}
+function exportRefCsv(){
+  if(!S.referrals.length){ toast("내보낼 소개 기록이 없습니다"); return; }
+  const I=refIdx(), q=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
+  const lines=[["소개일","소개받은분 차트번호","소개받은분 이름","소개자 차트번호","소개자 이름","관계","메모"].map(q).join(",")];
+  S.referrals.slice().sort((a,b)=>String(a.referred_date).localeCompare(String(b.referred_date))).forEach(r=>{ const a=I.byId[r.referred_id]||{}, b=I.byId[r.referrer_id]||{};
+    lines.push([r.referred_date,a.chart_no,a.name,b.chart_no,b.name,r.relation,r.memo].map(q).join(",")); });
+  downloadBlob(new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"}), "성동필한방병원_소개기록_"+localDate()+".csv");
+}
+
 function render(){
   document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected", t.dataset.view===S.view));
-  if(S.view==="input") renderInput(); else if(S.view==="monthly") renderMonthly(); else renderAnnual();
+  if(S.view==="input") renderInput(); else if(S.view==="monthly") renderMonthly(); else if(S.view==="annual") renderAnnual(); else renderReferral();
 }
 
 // ---------- 저장/삭제 ----------
@@ -602,13 +867,19 @@ async function save(){
   S.saving=true; render();
   const row={visit_date:f.date, visit_type:f.type, region_group:f.group, region_detail:f.detail||"",
     motives:MOTIVES.filter(m=>f.motives.includes(m)), clinics:CLINICS.filter(c=>f.clinics.includes(c))};
-  const {error}=await sb.from("visits").insert(row);
+  const withRef = f.motives.includes(REF_MOTIVE) && S.refLoaded && rfStatus(S.rf).s==="ok";
+  const {data:ins, error}=await sb.from("visits").insert(row).select("id").single();
+  if(error){ S.saving=false; if(authErr(error)) showLogin(); toast(authErr(error)?"로그인이 만료되었습니다. 다시 로그인해 주세요.":"저장하지 못했습니다. 인터넷 연결을 확인하고 다시 눌러 주세요."); render(); return; }
+  let refErr=null;
+  if(withRef) refErr = await addReferral(S.rf, f.date, ins && ins.id);
   S.saving=false;
-  if(error){ if(authErr(error)) showLogin(); toast(authErr(error)?"로그인이 만료되었습니다. 다시 로그인해 주세요.":"저장하지 못했습니다. 인터넷 연결을 확인하고 다시 눌러 주세요."); render(); return; }
   S.form={date:f.date, type:f.type, group:"", detail:"", motives:[], clinics:[]};
+  if(refErr){ S.rf2=Object.assign({}, S.rf, {date:f.date}); S.refForm=true; }   // 소개 관리의 직접 등록 칸에 옮겨 둠
+  S.rf=newRf();
   invalidate(f.date);
   await loadToday();
-  toast("저장했습니다 · "+(f.date===localDate()?"오늘":f.date)+" "+S.today.length+"번째 초진");
+  if(refErr){ toast("초진은 저장했습니다. 소개 등록은 실패: "+refErr+" ‘소개 관리’에서 다시 등록해 주세요."); return; }
+  toast("저장했습니다 · "+(f.date===localDate()?"오늘":f.date)+" "+S.today.length+"번째 초진"+(withRef?" · 소개 기록 포함":""));
   window.scrollTo({top:0,behavior:"smooth"});
 }
 async function del(id){
@@ -666,6 +937,7 @@ document.addEventListener("click", e=>{
   const f=S.form;
   if(t.dataset.g){
     const v=t.dataset.v, g=t.dataset.g;
+    if(g==="relation"){ const st=S[t.dataset.k]; st.relation = st.relation===v ? "" : v; render(); return; }
     if(g==="type") f.type=v;
     else if(g==="group"){ if(f.group!==v){ f.group=v; f.detail=""; } }
     else if(g==="detail") f.detail = f.detail===v ? "" : v;
@@ -673,8 +945,33 @@ document.addEventListener("click", e=>{
     render(); return;
   }
   if(t.id==="f-today"){ setToday(); return; }
+  // 소개 칸 (초진 입력 / 직접 등록 공용)
+  if(t.dataset.rf){
+    const st=S[t.dataset.k], a=t.dataset.rf;
+    if(a==="pick"){ st.referrerId=t.dataset.id; st.newRef=false; st.search=""; }
+    else if(a==="clear"){ st.referrerId=null; st.newRef=false; }
+    else if(a==="search"){ st.newRef=false; }
+    else if(a==="new"){ st.newRef=true; st.referrerId=null; const q=st.search.trim(); if(q){ if(/^\d+$/.test(q)) st.rChart=q; else st.rName=q; } }
+    render(); const nx=$("#"+t.dataset.k+(a==="new"?"-rchart":a==="search"||a==="clear"?"-search":"-chart")); if(nx && a!=="pick") nx.focus();
+    return;
+  }
+  // 소개 관리 화면
+  if(t.dataset.refSel){ S.refSel=t.dataset.refSel; S.refEdit=false; S.refSearch=""; render(); window.scrollTo({top:0,behavior:"smooth"}); return; }
+  if(t.dataset.mask){ S.maskNames=t.dataset.mask==="1"; store.set("maskNames",S.maskNames?"1":"0"); render(); return; }
+  if(t.id==="ref-refresh"){ loadRefData(); toast("최신 소개 기록을 불러왔습니다"); return; }
+  if(t.id==="ref-csv"){ exportRefCsv(); return; }
+  if(t.id==="ref-new"){ S.refForm=true; render(); window.scrollTo({top:0,behavior:"smooth"}); return; }
+  if(t.id==="rf2-cancel"){ S.refForm=false; render(); return; }
+  if(t.id==="rf2-save"){ saveRf2(); return; }
+  if(t.id==="ref-close"){ S.refSel=null; S.refEdit=false; render(); return; }
+  if(t.id==="ref-edit"){ S.refEdit=true; render(); return; }
+  if(t.id==="ref-edit-cancel"){ S.refEdit=false; render(); return; }
+  if(t.id==="ref-edit-save"){ saveName(); return; }
+  if(t.dataset.refdel){ S.refConfirmDel=t.dataset.refdel; render(); return; }
+  if(t.hasAttribute("data-refdel-no")){ S.refConfirmDel=null; render(); return; }
+  if(t.dataset.refdelYes){ delReferral(t.dataset.refdelYes); return; }
   if(t.id==="f-save"){ save(); return; }
-  if(t.id==="f-reset"){ S.form={date:f.date,type:"",group:"",detail:"",motives:[],clinics:[]}; render(); return; }
+  if(t.id==="f-reset"){ S.form={date:f.date,type:"",group:"",detail:"",motives:[],clinics:[]}; S.rf=newRf(); render(); return; }
   if(t.dataset.del){ S.confirmDel=t.dataset.del; render(); return; }
   if(t.hasAttribute("data-del-no")){ S.confirmDel=null; render(); return; }
   if(t.dataset.delYes){ del(t.dataset.delYes); return; }
@@ -689,11 +986,25 @@ document.addEventListener("click", e=>{
   if(t.id==="csv"){ exportCsv(); return; }
   if(t.id==="logout"){ sb.auth.signOut(); return; }
 });
+// 글자 입력: 화면 전체를 다시 그리지 않고 필요한 부분만 갱신 (입력 중 커서 유지)
+document.addEventListener("input", e=>{
+  const el=e.target, k=el.dataset && el.dataset.k, fld=el.dataset && el.dataset.f;
+  if(k && fld && S[k]){
+    S[k][fld]=el.value;
+    if(fld==="search"){ const r=$("#"+k+"-results"); if(r) r.innerHTML=rfResults(k); }
+    if(fld==="rChart"){ const h=$("#"+k+"-rhint"); if(h) h.innerHTML=rHint(S[k],k); }
+    if(fld==="chart"){ const h=$("#"+k+"-phint"); if(h) h.innerHTML=pHint(S[k]); }
+    if(k==="rf"){ const st=inputState(); const b=$("#f-save"); if(b) b.disabled=!st.ok||S.saving; const s=$("#f-summary"); if(s) s.innerHTML=st.summary; }
+    if(k==="rf2"){ const b=$("#rf2-save"); if(b) b.disabled=rfStatus(S.rf2).s!=="ok"||S.refSaving; const s=$("#rf2-msg"); if(s) s.innerHTML=rf2Msg(); }
+    return;
+  }
+  if(el.id==="ref-search"){ S.refSearch=el.value; const r=$("#ref-search-results"); if(r) r.innerHTML=refSearchResults(); }
+});
 document.addEventListener("change", e=>{
   if(e.target.id==="f-date" && e.target.value){ S.form.date=e.target.value; S.dateAuto = S.form.date===localDate(); loadToday(); render(); }
   if(e.target.id==="ym" && e.target.value){ S.ym=e.target.value; ensureData(); render(); }
 });
-const VIEWS=["input","monthly","annual"];
+const VIEWS=["input","monthly","annual","referral"];
 function go(v){ if(!VIEWS.includes(v)) v="input"; S.view=v; if(location.hash!=="#"+v) history.replaceState(null,"","#"+v); ensureData(); render(); window.scrollTo(0,0); }
 window.addEventListener("hashchange",()=>{ const v=location.hash.slice(1); if(VIEWS.includes(v) && v!==S.view) go(v); });
 // 날짜 자동 맞춤: 켜 둔 채 자정을 넘기면 오늘로 바꿈 (지난 날짜를 직접 고른 경우는 유지)
@@ -732,7 +1043,7 @@ function showApp(){
   if(recovering){ showReset(); return; }
   $("#login").hidden=true; $("#app").hidden=false;
   S.view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "input";
-  S.cache={}; render(); loadToday(); ensureData();
+  S.cache={}; render(); loadToday(); ensureData(); loadRefData();
 }
 $("#login-form").addEventListener("submit", async e=>{
   e.preventDefault();
