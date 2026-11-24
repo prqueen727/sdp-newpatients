@@ -1,0 +1,12 @@
+{
+  "name": "성동필한방병원 초진 통계",
+  "short_name": "초진 통계",
+  "start_url": "./#input",
+  "display": "standalone",
+  "background_color": "#f3f6f4",
+  "theme_color": "#1f6b5a",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>성동필 초진 통계</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#1f6b5a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: 상단 병원 띠 + 탭 3개(입력 / 월간 / 연간), 1080px 단일 컬럼, 섹션 단위로 PDF 캡처 */
+:root{
+  --bg:#f3f6f4; --surface:#ffffff; --sunk:#eaf0ec; --fg:#16211c; --muted:#5b6a63; --line:#dbe3de;
+  --accent:#1f6b5a; --accent-rgb:31,107,90; --on-accent:#ffffff; --accent-soft:#e1efe9;
+  --good:#1d7a45; --bad:#b4442f;
+  --f-display:"IBM Plex Sans KR","Noto Sans KR",system-ui,sans-serif;
+  --f-body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111614; --surface:#18201c; --sunk:#1e2823; --fg:#e4ebe7; --muted:#97a69f; --line:#2b3631;
+  --accent:#62b8a0; --accent-rgb:98,184,160; --on-accent:#0c1512; --accent-soft:#1f3a32;
+  --good:#5cc489; --bad:#ef8a72; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111614; --surface:#18201c; --sunk:#1e2823; --fg:#e4ebe7; --muted:#97a69f; --line:#2b3631;
+  --accent:#62b8a0; --accent-rgb:98,184,160; --on-accent:#0c1512; --accent-soft:#1f3a32;
+  --good:#5cc489; --bad:#ef8a72; color-scheme:dark}
+
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55}
+[hidden]{display:none!important}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.band{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.band .wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-block:12px}
+.brand{display:flex;flex-direction:column;line-height:1.25;margin-right:auto}
+.brand b{font-family:var(--f-display);font-weight:700;font-size:18px;letter-spacing:-.01em}
+.brand span{font-size:12px;color:var(--muted)}
+.tabs{display:flex;gap:4px;background:var(--sunk);padding:4px;border-radius:10px}
+.tab{border:0;background:transparent;padding:7px 14px;border-radius:7px;cursor:pointer;font-weight:500;color:var(--muted);white-space:nowrap}
+.tab[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.logout{border:0;background:transparent;color:var(--muted);font-size:13px;cursor:pointer;padding:6px 4px;text-decoration:underline;text-underline-offset:3px}
+main.wrap{padding-block:24px 64px;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:26px;font-weight:700}
+h2{font-size:17px;font-weight:600}
+.sub{color:var(--muted);font-size:13px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--muted)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.notice{padding:10px 14px;border-radius:8px;background:var(--accent-soft);font-size:13px}
+.notice.warn{background:rgba(180,68,47,.12)}
+
+/* 로그인 */
+.login{min-height:100vh;display:grid;place-items:center;padding-block:24px}
+.login .card{width:100%;max-width:380px;display:flex;flex-direction:column;gap:18px;padding:28px}
+.login .mark{width:48px;height:48px;border-radius:12px;background:var(--accent);display:grid;place-items:center;color:var(--on-accent);font-family:var(--f-display);font-weight:700;font-size:20px}
+.login input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:16px}
+.login .err{color:var(--bad);font-size:13px;min-height:1.2em}
+
+/* 입력 */
+.form{display:flex;flex-direction:column;gap:22px}
+.field{display:flex;flex-direction:column;gap:10px}
+.field-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.field-head h2{font-size:16px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:999px;cursor:pointer;font-size:14px;min-height:40px;transition:background .12s,border-color .12s}
+.chip:hover{border-color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:500}
+.chips.big .chip{padding:10px 18px;font-size:15px;min-height:46px}
+.chips.type .chip{min-width:110px;font-size:16px;font-weight:500;border-radius:10px}
+.sublist{padding:14px;background:var(--sunk);border-radius:10px;display:flex;flex-direction:column;gap:10px}
+.chip.sm{min-height:36px;padding:6px 12px;font-size:13.5px}
+.dateinp{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg)}
+.savebar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-top:6px;border-top:1px solid var(--line)}
+.btn{border:1px solid var(--line);background:var(--surface);padding:9px 16px;border-radius:9px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700;padding:12px 26px;font-size:16px}
+.btn.primary.sm{padding:9px 18px;font-size:14px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.danger{color:var(--bad)}
+.summary{font-size:14px;color:var(--muted);flex:1;min-width:200px}
+.trow{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
+.trow:first-child{border-top:0}
+.trow .n{font-variant-numeric:tabular-nums;color:var(--muted);font-weight:700}
+.trow .d{min-width:0}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:5px;background:var(--sunk);margin:2px 4px 2px 0}
+.tag.r{background:var(--accent-soft);font-weight:500}
+.tag.t{background:var(--accent);color:var(--on-accent);font-weight:500}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 18px;border-radius:10px;font-weight:500;z-index:20;max-width:calc(100% - 32px)}
+
+/* 통계 */
+.statshead{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.statshead .t{margin-right:auto;display:flex;flex-direction:column;gap:4px}
+.pager{display:flex;align-items:center;gap:6px}
+.pager .btn{padding:7px 12px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.kpi .v{font-family:var(--f-display);font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2;overflow-wrap:anywhere}
+.kpi.hero{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.kpi.hero .lbl{color:var(--on-accent);opacity:.85}
+.kpi.hero .v{font-size:40px}
+.kpi .s{font-size:12.5px;color:var(--muted)}
+.kpi.hero .s{color:var(--on-accent);opacity:.88}
+.up{color:var(--good);font-weight:700}.down{color:var(--bad);font-weight:700}
+.kpi.hero .up,.kpi.hero .down{color:var(--on-accent)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+@media (max-width:760px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.chart{display:flex;flex-direction:column;gap:14px;min-width:0}
+.chart-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.bars{display:flex;flex-direction:column;gap:7px}
+.bar{display:grid;grid-template-columns:minmax(80px,30%) 1fr 84px;gap:10px;align-items:center;font-size:13.5px}
+.bar .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .track{height:16px;background:var(--sunk);border-radius:0 4px 4px 0;position:relative}
+.bar .fill{position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:0 4px 4px 0;min-width:2px}
+.bar .val{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bar .val b{font-weight:700}
+.bar .val small{color:var(--muted);margin-left:4px}
+.bar.zero{color:var(--muted)}
+.bar.zero .fill{display:none}
+.cols{display:flex;align-items:flex-end;gap:3px;height:150px;padding-top:18px}
+.col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;position:relative}
+.col .cfill{width:100%;max-width:38px;background:var(--accent);border-radius:4px 4px 0 0}
+.col .cv{font-size:11px;font-variant-numeric:tabular-nums;color:var(--muted);position:absolute;transform:translateY(-100%);padding-bottom:2px}
+.collabels{display:flex;gap:3px;border-top:1px solid var(--line);padding-top:4px}
+.collabels span{flex:1;text-align:center;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:0}
+.crossbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.crossbar h2{margin-right:auto}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table.x{border-collapse:separate;border-spacing:0;font-size:13px;font-variant-numeric:tabular-nums;width:100%}
+table.x th,table.x td{padding:6px 9px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+table.x thead th{background:var(--sunk);font-weight:500;font-size:12.5px;position:sticky;top:0}
+table.x tbody th{text-align:left;font-weight:500;background:var(--surface);position:sticky;left:0;z-index:1}
+table.x td.heat{background:rgba(var(--accent-rgb),var(--a));border-left:2px solid var(--surface);line-height:1.2}
+table.x td b{display:block;font-weight:700;font-size:13.5px}
+table.x td small{display:block;font-size:11px;opacity:.8}
+table.x td.heat.hi{color:var(--on-accent)}
+table.x td.z{color:var(--muted);opacity:.5}
+table.x .tot{font-weight:700;background:var(--sunk)}
+table.x tr:last-child td,table.x tr:last-child th{border-bottom:0}
+.seg{display:inline-flex;background:var(--sunk);border-radius:8px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;padding:5px 11px;border-radius:6px;cursor:pointer;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);font-weight:500}
+.empty{padding:36px 20px;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center}
+.samplebanner{background:repeating-linear-gradient(135deg,var(--accent-soft) 0 10px,var(--surface) 10px 20px);border:1px dashed var(--accent);padding:10px 14px;border-radius:8px;font-size:13px;font-weight:500;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.foot{font-size:12px;color:var(--muted)}
+body.pdf .wrap{max-width:1000px;width:1000px}
+body.pdf [data-noprint]{display:none!important}
+body.pdf .tablewrap{overflow:visible}
+body.pdf table.x thead th, body.pdf table.x tbody th{position:static}
+@media (max-width:520px){
+  .bar{grid-template-columns:minmax(70px,34%) 1fr 74px}
+  .kpi.hero .v{font-size:34px}
+  h1{font-size:22px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ===== 설정: Supabase 프로젝트 정보 (README 참고) ===== -->
+<script>
+window.APP_CONFIG = {
+  SUPABASE_URL: "https://YOUR-PROJECT.supabase.co",
+  SUPABASE_ANON_KEY: "YOUR-ANON-KEY",
+  STAFF_EMAIL: "staff@sdphil.local"
+};
+</script>
+
+<div id="login" class="wrap login" hidden>
+  <form class="card" id="login-form" autocomplete="on">
+    <div class="mark" aria-hidden="true">필</div>
+    <div><h1 style="font-size:22px">성동필한방병원</h1><div class="sub">초진환자 통계 · 직원 전용</div></div>
+    <input type="text" name="username" autocomplete="username" hidden>
+    <label class="field" style="gap:6px"><span class="lbl">비밀번호</span>
+      <input type="password" id="pw" autocomplete="current-password" required placeholder="비밀번호 입력"></label>
+    <div class="err" id="login-err" role="alert"></div>
+    <button class="btn primary" id="login-btn" type="submit">들어가기</button>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <header class="band">
+    <div class="wrap">
+      <div class="brand"><b>성동필한방병원</b><span>초진환자 통계 · 마케팅 분석</span></div>
+      <nav class="tabs" role="tablist">
+        <button class="tab" role="tab" data-view="input">초진 입력</button>
+        <button class="tab" role="tab" data-view="monthly">월간 통계</button>
+        <button class="tab" role="tab" data-view="annual">연간 통계</button>
+      </nav>
+      <button class="logout" id="logout">로그아웃</button>
+    </div>
+  </header>
+  <main class="wrap" id="main"></main>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(function(){
+"use strict";
+// ---------- 분류 ----------
+const TYPES = ["외래","입원"];
+const REGIONS = [
+  {key:"성동구", label:"성동구", req:true, details:["왕십리2동","왕십리도선동","마장동","사근동","행당1동","행당2동","응봉동","금호1가동","금호2·3가동","금호4가동","옥수동","성수1가1동","성수1가2동","성수2가1동","성수2가3동","송정동","용답동"]},
+  {key:"동대문구", label:"동대문구", req:true, details:["용신동","제기동","전농1동","전농2동","답십리1동","답십리2동","장안1동","장안2동","청량리동","회기동","휘경1동","휘경2동","이문1동","이문2동"]},
+  {key:"서울 기타", label:"서울 (성동·동대문 외)", req:false, details:["광진구","중랑구","중구","성북구","종로구","용산구","강북구","도봉구","노원구","은평구","서대문구","마포구","양천구","강서구","구로구","금천구","영등포구","동작구","관악구","서초구","강남구","송파구","강동구"]},
+  {key:"경기도", label:"경기도", req:false, details:["구리시","남양주시","하남시","성남시","고양시","의정부시","수원시","용인시","경기 기타"]},
+  {key:"기타", label:"기타 (인천·지방 등)", req:false, details:[]}
+];
+const MOTIVES = ["지인 소개","간판","지나가다","전단지","거주지","버스광고","인터넷 검색","AI 검색","기타"];
+const CLINICS = ["도수치료","수술후 재활","주사/수액","한약/보약","다이어트","소화불량","여성질환","예방접종","척추질환","관절질환","안면마비","교통사고","기타"];
+const RKEYS = REGIONS.map(r=>r.key);
+const rLabel = k => (REGIONS.find(r=>r.key===k)||{label:k}).label;
+
+// ---------- 유틸 ----------
+const $ = s => document.querySelector(s);
+const esc = v => String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2,"0");
+const localDate = (d=new Date()) => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const ymOf = d => d.slice(0,7);
+const ymLabel = ym => { const [y,m]=ym.split("-"); return y+"년 "+(+m)+"월"; };
+const shiftYm = (ym,k) => { let [y,m]=ym.split("-").map(Number); m+=k; while(m<1){m+=12;y--} while(m>12){m-=12;y++} return y+"-"+pad(m); };
+const daysIn = ym => { const [y,m]=ym.split("-").map(Number); return new Date(y,m,0).getDate(); };
+const pct = (n,t) => t? Math.round(n*1000/t)/10 : 0;
+let toastT;
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,2600); }
+const store = { get(k){ try{return localStorage.getItem(k)}catch(_){return null} }, set(k,v){ try{localStorage.setItem(k,v)}catch(_){} } };
+
+// ---------- 상태 ----------
+const S = {
+  view:"input",
+  ym: ymOf(localDate()),
+  year: +localDate().slice(0,4),
+  form:{date:localDate(), type:"", group:"", detail:"", motives:[], clinics:[]},
+  today:[], todayLoaded:false,
+  cache:{},            // key("m:2026-11" | "y:2026") -> docs
+  loading:{},
+  prevCount:{},
+  sample:{monthly:false, annual:false},
+  crossLevel: store.get("crossLevel")==="dong" ? "dong" : "group",
+  pctMode: ["row","col","all"].includes(store.get("pctMode")) ? store.get("pctMode") : "row",
+  confirmDel:null, saving:false, pdfBusy:false, loadErr:null
+};
+
+// ---------- Supabase ----------
+const C = window.APP_CONFIG||{};
+const configured = C.SUPABASE_URL && !/YOUR-/.test(C.SUPABASE_URL) && C.SUPABASE_ANON_KEY && !/YOUR-/.test(C.SUPABASE_ANON_KEY);
+const sb = configured && window.supabase ? window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY) : null;
+const norm = r => ({id:r.id, date:r.visit_date, visitType:r.visit_type, regionGroup:r.region_group, regionDetail:r.region_detail||"", motives:r.motives||[], clinics:r.clinics||[], createdAt:r.created_at});
+
+async function fetchRange(from, to){
+  let all=[], page=0;
+  for(;;){
+    const {data,error}=await sb.from("visits").select("*").gte("visit_date",from).lt("visit_date",to)
+      .order("visit_date").order("created_at").range(page*1000, page*1000+999);
+    if(error) throw error;
+    all=all.concat(data); if(data.length<1000) break; page++;
+  }
+  return all.map(norm);
+}
+const monthRange = ym => [ym+"-01", shiftYm(ym,1)+"-01"];
+async function load(key){
+  if(S.cache[key] || S.loading[key]) return;
+  S.loading[key]=true; S.loadErr=null;
+  try{
+    const [kind,val]=key.split(":");
+    const [from,to] = kind==="m" ? monthRange(val) : [val+"-01-01",(+val+1)+"-01-01"];
+    S.cache[key]=await fetchRange(from,to);
+    if(kind==="m"){
+      const p=shiftYm(val,-1), pr=monthRange(p);
+      const {count}=await sb.from("visits").select("id",{count:"exact",head:true}).gte("visit_date",pr[0]).lt("visit_date",pr[1]);
+      S.prevCount[val]=count==null?null:count;
+    }
+  }catch(e){ S.loadErr = authErr(e) ? "로그인이 만료되었습니다. 다시 로그인해 주세요." : "데이터를 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침을 눌러 주세요."; if(authErr(e)) showLogin(); }
+  finally{ S.loading[key]=false; render(); }
+}
+async function loadToday(){
+  S.todayLoaded=false;
+  const {data,error}=await sb.from("visits").select("*").eq("visit_date",S.form.date).order("created_at");
+  if(!error) S.today=data.map(norm); else if(authErr(error)) showLogin();
+  S.todayLoaded=true; render();
+}
+const authErr = e => e && (e.status===401 || /JWT|auth/i.test(e.message||""));
+function invalidate(date){ delete S.cache["m:"+ymOf(date)]; delete S.cache["y:"+date.slice(0,4)]; delete S.cache["m:"+shiftYm(ymOf(date),1)]; }
+function refresh(){ S.cache={}; S.prevCount={}; ensureData(); render(); }
+function ensureData(){
+  if(!sb) return;
+  if(S.view==="monthly" && !S.sample.monthly) load("m:"+S.ym);
+  if(S.view==="annual" && !S.sample.annual) load("y:"+S.year);
+}
+
+// ---------- 집계 ----------
+function regionKey(d, level){ return level==="dong" && d.regionDetail ? d.regionDetail : d.regionGroup; }
+function agg(docs){
+  const A = {total:docs.length, type:{}, group:{}, detail:{}, motive:{}, clinic:{}, day:{}, month:{}};
+  TYPES.forEach(k=>A.type[k]=0); RKEYS.forEach(k=>{A.group[k]=0; A.detail[k]={};});
+  MOTIVES.forEach(k=>A.motive[k]=0); CLINICS.forEach(k=>A.clinic[k]=0);
+  for(const d of docs){
+    A.type[d.visitType]=(A.type[d.visitType]||0)+1;
+    A.group[d.regionGroup]=(A.group[d.regionGroup]||0)+1;
+    if(d.regionDetail){ const g=A.detail[d.regionGroup]||(A.detail[d.regionGroup]={}); g[d.regionDetail]=(g[d.regionDetail]||0)+1; }
+    d.motives.forEach(m=>A.motive[m]=(A.motive[m]||0)+1);
+    d.clinics.forEach(c=>A.clinic[c]=(A.clinic[c]||0)+1);
+    const day=+String(d.date).slice(8,10); A.day[day]=(A.day[day]||0)+1;
+    const mo=+String(d.date).slice(5,7); A.month[mo]=(A.month[mo]||0)+1;
+  }
+  return A;
+}
+// 교차 집계: 셀 = 환자 수, 행/열 합계 = 해당 항목을 가진 환자 수(중복 제외)
+function cross(docs, rowFn, colFn){
+  const m={}, rn={}, cn={};
+  for(const d of docs){
+    const rs=[...new Set(rowFn(d))], cs=[...new Set(colFn(d))];
+    rs.forEach(r=>rn[r]=(rn[r]||0)+1); cs.forEach(c=>cn[c]=(cn[c]||0)+1);
+    for(const r of rs) for(const c of cs){ m[r]=m[r]||{}; m[r][c]=(m[r][c]||0)+1; }
+  }
+  return {m,rn,cn,N:docs.length};
+}
+const top1 = obj => { let best=null; for(const [k,v] of Object.entries(obj)) if(v>0 && (!best||v>best[1])) best=[k,v]; return best; };
+
+// ---------- 예시 데이터 (미리보기 전용, 저장 안 됨) ----------
+function rng(seed){ let s=seed%2147483647; if(s<=0)s+=2147483646; return ()=> (s=s*16807%2147483647)/2147483647; }
+function pickW(r, items, w){ let t=w.reduce((a,b)=>a+b,0), x=r()*t; for(let i=0;i<items.length;i++){ x-=w[i]; if(x<=0) return items[i]; } return items[items.length-1]; }
+function sampleDocs(ym){
+  const [y,m]=ym.split("-").map(Number); const r=rng(y*100+m*7919);
+  const n=Math.round(95+r()*70), out=[];
+  const MW=[24,10,8,5,14,4,22,7,3], CW=[16,6,9,12,6,5,5,2,18,14,3,10,3];
+  for(let i=0;i<n;i++){
+    const g=pickW(r,RKEYS,[46,24,15,10,5]); const reg=REGIONS.find(x=>x.key===g);
+    const det = reg.details.length && (reg.req || r()<.7) ? reg.details[Math.floor(Math.pow(r(),1.6)*reg.details.length)] : "";
+    const cl=[pickW(r,CLINICS,CW)]; if(r()<.3){const x=pickW(r,CLINICS,CW); if(!cl.includes(x)) cl.push(x);}
+    const inpat = (cl.includes("교통사고")||cl.includes("수술후 재활")) ? r()<.45 : r()<.08;
+    const mot=[pickW(r,MOTIVES,MW)]; if(r()<.12){const x=pickW(r,MOTIVES,MW); if(!mot.includes(x)) mot.push(x);}
+    out.push({id:"s"+i, date:ym+"-"+pad(1+Math.floor(r()*daysIn(ym))), visitType:inpat?"입원":"외래", regionGroup:g, regionDetail:det, motives:mot, clinics:cl});
+  }
+  return out;
+}
+
+// ---------- 차트 ----------
+function barChart(title, entries, total, note){
+  const max=Math.max(1,...entries.map(e=>e[1]));
+  const rows = entries.map(([k,v])=>`<div class="bar${v?"":" zero"}" title="${esc(k)}: ${v}명 (${pct(v,total)}%)">
+      <span class="name">${esc(k)}</span>
+      <span class="track"><span class="fill" style="width:${(v/max*100).toFixed(1)}%"></span></span>
+      <span class="val"><b>${v}</b><small>${pct(v,total)}%</small></span></div>`).join("");
+  return `<section class="card chart" data-pdf><div class="chart-head"><h2>${esc(title)}</h2>${note?`<span class="sub">${esc(note)}</span>`:""}</div>
+    <div class="bars">${rows || `<div class="sub">기록 없음</div>`}</div></section>`;
+}
+const sortDesc = (obj, order) => (order||Object.keys(obj)).map(k=>[k,obj[k]||0]).sort((a,b)=>b[1]-a[1]);
+
+function colChart(title, values, labels, note, showAll){
+  const max=Math.max(1,...values);
+  const cols=values.map((v,i)=>`<div class="col" title="${esc(labels[i])}: ${v}명">${(showAll||v===max)&&v?`<span class="cv" style="bottom:${(v/max*100).toFixed(1)}%">${v}</span>`:""}<div class="cfill" style="height:${(v/max*100).toFixed(1)}%"></div></div>`).join("");
+  const labs=labels.map((l,i)=>`<span>${(showAll||i===0||(i+1)%5===0)?esc(l):""}</span>`).join("");
+  return `<section class="card chart" data-pdf><div class="chart-head"><h2>${esc(title)}</h2>${note?`<span class="sub">${esc(note)}</span>`:""}</div>
+    <div><div class="cols">${cols}</div><div class="collabels">${labs}</div></div></section>`;
+}
+
+const PCT_NAME = {row:"행 기준 %", col:"열 기준 %", all:"전체 대비 %"};
+function heatTable(title, X, rowOrder, colOrder, rowName, colName, note){
+  const rows=rowOrder.filter(r=>X.rn[r]); const cols=colOrder.filter(c=>X.cn[c]);
+  const mode=S.pctMode;
+  let body;
+  if(!rows.length) body=`<div class="sub">기록 없음</div>`;
+  else{
+    const share=(v,r,c)=> mode==="row"? v/X.rn[r] : mode==="col"? v/X.cn[c] : v/X.N;
+    let maxS=0; rows.forEach(r=>cols.forEach(c=>{ const v=(X.m[r]||{})[c]||0; if(v) maxS=Math.max(maxS,share(v,r,c)); }));
+    const th=cols.map(c=>`<th>${esc(c)}</th>`).join("");
+    const trs=rows.map(r=>{
+      const tds=cols.map(c=>{ const v=(X.m[r]||{})[c]||0; if(!v) return `<td class="z">·</td>`;
+        const s=share(v,r,c), a=0.08+0.82*(maxS? s/maxS : 0);
+        return `<td class="heat${a>.55?" hi":""}" style="--a:${a.toFixed(2)}" title="${esc(r)} × ${esc(c)}: ${v}명 · ${PCT_NAME[mode]} ${pct(s,1)}%"><b>${v}</b><small>${pct(s,1)}%</small></td>`; }).join("");
+      const rs = mode==="col" ? "" : `<small>${pct(X.rn[r],X.N)}%</small>`;
+      return `<tr><th>${esc(r)}</th>${tds}<td class="tot"><b>${X.rn[r]}</b>${rs}</td></tr>`;
+    }).join("");
+    const ft=`<tr><th class="tot">전체 환자</th>${cols.map(c=>`<td class="tot"><b>${X.cn[c]}</b>${mode==="row"?"":`<small>${pct(X.cn[c],X.N)}%</small>`}</td>`).join("")}<td class="tot"><b>${X.N}</b></td></tr>`;
+    body=`<div class="tablewrap"><table class="x"><thead><tr><th>${esc(rowName)} \\ ${esc(colName)}</th>${th}<th>환자 수</th></tr></thead><tbody>${trs}${ft}</tbody></table></div>`;
+  }
+  return `<section class="card chart" data-pdf><div class="chart-head"><h2>${esc(title)}</h2><span class="sub">${PCT_NAME[mode]}</span></div>${note?`<div class="sub">${esc(note)}</div>`:""}${body}</section>`;
+}
+
+function regionOrder(level, docs){
+  if(level==="group") return RKEYS;
+  const seen=new Set(docs.map(d=>regionKey(d,"dong")));
+  const out=[]; REGIONS.forEach(r=>{ r.details.forEach(d=>{ if(seen.has(d)) out.push(d); }); if(seen.has(r.key)) out.push(r.key); });
+  return out;
+}
+
+function crossSections(docs){
+  const L=S.crossLevel, ro=regionOrder(L,docs), unit = L==="group" ? "구 단위" : "동 단위";
+  const tf=d=>[d.visitType], rf=d=>[regionKey(d,L)], mf=d=>d.motives, cf=d=>d.clinics;
+  const modeNote = {row:"각 칸 % = 그 행(왼쪽 항목) 환자 중 비율", col:"각 칸 % = 그 열(위쪽 항목) 환자 중 비율", all:"각 칸 % = 전체 초진 환자 대비 비율"}[S.pctMode];
+  const bar = `<div class="crossbar" data-pdf>
+      <h2>크로스 통계</h2>
+      <span class="sub">${esc(modeNote)} · 지역 ${unit}</span>
+      <span class="seg" data-noprint>${["row","col","all"].map(k=>`<button data-pct="${k}" aria-pressed="${S.pctMode===k}">${PCT_NAME[k]}</button>`).join("")}</span>
+      <span class="seg" data-noprint><button data-level="group" aria-pressed="${L==="group"}">구 단위</button><button data-level="dong" aria-pressed="${L==="dong"}">동 단위</button></span>
+    </div>`;
+  return bar
+   + heatTable("내원종류 × 클리닉", cross(docs,tf,cf), TYPES, CLINICS, "내원종류", "클리닉", "외래·입원별로 많이 찾는 진료")
+   + heatTable("내원종류 × 지역", cross(docs,tf,rf), TYPES, ro, "내원종류", "지역", "입원 환자가 어느 지역에서 오는지 ("+unit+")")
+   + heatTable("내원종류 × 내원동기", cross(docs,tf,mf), TYPES, MOTIVES, "내원종류", "내원동기", "외래·입원 환자를 데려오는 채널")
+   + heatTable("지역 × 클리닉", cross(docs,rf,cf), ro, CLINICS, "지역", "클리닉", "어느 동네에서 어떤 진료로 오는지 — 지역 타깃 광고 문구 선정")
+   + heatTable("내원동기 × 클리닉", cross(docs,mf,cf), MOTIVES, CLINICS, "내원동기", "클리닉", "어떤 채널이 어떤 진료 환자를 데려오는지 — 채널별 광고 소재 선정")
+   + heatTable("지역 × 내원동기", cross(docs,rf,mf), ro, MOTIVES, "지역", "내원동기", "동네별로 효과 있는 채널 — 전단지·버스광고 배포 지역 선정");
+}
+
+function dongCharts(A, total){
+  let html="";
+  for(const g of ["성동구","동대문구"]){
+    const ent=sortDesc(A.detail[g]||{}, REGIONS.find(r=>r.key===g).details).filter(e=>e[1]>0);
+    html+=barChart(g+" 동별", ent, total, "전체 초진 대비 %");
+  }
+  const etc=[]; for(const g of ["서울 기타","경기도"]) for(const [k,v] of Object.entries(A.detail[g]||{})) etc.push([k,v]);
+  etc.sort((a,b)=>b[1]-a[1]);
+  if(etc.length) html+=barChart("성동·동대문 외 상세 (구·시)", etc, total, "입력된 경우만");
+  return html;
+}
+
+// ---------- 입력 화면 ----------
+function renderInput(){
+  const f=S.form, reg=REGIONS.find(r=>r.key===f.group);
+  const ok = f.type && f.group && (!reg.req || f.detail) && f.motives.length && f.clinics.length;
+  const missing=[]; if(!f.type) missing.push("내원 종류");
+  if(!f.group) missing.push("지역"); else if(reg.req && !f.detail) missing.push(reg.key+" 동");
+  if(!f.motives.length) missing.push("내원 동기"); if(!f.clinics.length) missing.push("클리닉");
+  const summary = ok ? `${esc(f.type)} / ${esc(rLabel(f.group))}${f.detail?" · "+esc(f.detail):""} / ${esc(f.motives.join(", "))} / ${esc(f.clinics.join(", "))}` : "선택 필요: "+esc(missing.join(", "));
+  const chip=(group,val,label,on,cls)=>`<button class="chip${cls?" "+cls:""}" data-g="${group}" data-v="${esc(val)}" aria-pressed="${on}">${esc(label)}</button>`;
+
+  const todayRows = S.today.map((d,i)=>`
+    <div class="trow"><span class="n">${i+1}</span>
+      <div class="d"><span class="tag t">${esc(d.visitType)}</span><span class="tag r">${esc(d.regionDetail||rLabel(d.regionGroup))}</span>${d.motives.map(m=>`<span class="tag">${esc(m)}</span>`).join("")}${d.clinics.map(c=>`<span class="tag">${esc(c)}</span>`).join("")}</div>
+      ${S.confirmDel===d.id
+        ? `<span class="row"><button class="btn danger" data-del-yes="${esc(d.id)}">삭제</button><button class="btn" data-del-no>취소</button></span>`
+        : `<button class="btn" data-del="${esc(d.id)}">삭제</button>`}
+    </div>`).join("");
+
+  $("#main").innerHTML = `
+    <div class="row" style="justify-content:space-between;align-items:flex-end">
+      <div><h1>초진 입력</h1><div class="sub">초진 1명당 1건씩 입력하세요. 환자 이름 등 개인정보는 저장하지 않습니다.</div></div>
+      <label class="row" style="gap:8px"><span class="lbl">내원일</span><input type="date" id="f-date" class="dateinp" value="${esc(f.date)}" max="${localDate()}"></label>
+    </div>
+    <div class="card form">
+      <div class="field">
+        <div class="field-head"><h2>1. 내원 종류</h2><span class="sub">하나 선택</span></div>
+        <div class="chips big type">${TYPES.map(t=>chip("type",t,t,f.type===t)).join("")}</div>
+      </div>
+      <div class="field">
+        <div class="field-head"><h2>2. 거주 지역</h2><span class="sub">하나 선택</span></div>
+        <div class="chips big">${REGIONS.map(r=>chip("group",r.key,r.label,f.group===r.key)).join("")}</div>
+        ${reg && reg.details.length ? `<div class="sublist"><span class="lbl">${esc(reg.key)} 상세 ${reg.req?"(필수)":"(선택)"}</span>
+          <div class="chips">${reg.details.map(d=>chip("detail",d,d,f.detail===d,"sm")).join("")}</div></div>`:""}
+      </div>
+      <div class="field">
+        <div class="field-head"><h2>3. 내원 동기</h2><span class="sub">복수 선택 가능</span></div>
+        <div class="chips big">${MOTIVES.map(m=>chip("motive",m,m,f.motives.includes(m))).join("")}</div>
+      </div>
+      <div class="field">
+        <div class="field-head"><h2>4. 클리닉 및 진료</h2><span class="sub">복수 선택 가능</span></div>
+        <div class="chips big">${CLINICS.map(c=>chip("clinic",c,c,f.clinics.includes(c))).join("")}</div>
+      </div>
+      <div class="savebar">
+        <div class="summary">${summary}</div>
+        <button class="btn" id="f-reset">초기화</button>
+        <button class="btn primary" id="f-save" ${(!ok||S.saving)?"disabled":""}>${S.saving?"저장 중…":"초진 저장"}</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="chart-head" style="margin-bottom:8px"><h2>${f.date===localDate()?"오늘":esc(f.date)} 입력 내역</h2><span class="sub">${S.today.length}명 · 외래 ${S.today.filter(d=>d.visitType==="외래").length} / 입원 ${S.today.filter(d=>d.visitType==="입원").length}</span></div>
+      <div>${todayRows || `<div class="sub" style="padding:8px 0">${S.todayLoaded?"아직 입력된 초진이 없습니다. 위에서 항목을 고르고 ‘초진 저장’을 누르면 여기에 쌓입니다.":"불러오는 중…"}</div>`}</div>
+    </div>`;
+}
+
+// ---------- 통계 화면 공통 ----------
+function statsHead(kind, title, label){
+  const pager = kind==="monthly"
+    ? `<button class="btn" data-ym="-1" aria-label="이전 달">‹</button><input type="month" id="ym" class="dateinp" value="${S.ym}"><button class="btn" data-ym="1" aria-label="다음 달">›</button>`
+    : `<button class="btn" data-yr="-1" aria-label="이전 해">‹</button><span style="font-weight:700;font-variant-numeric:tabular-nums;padding:0 6px">${S.year}</span><button class="btn" data-yr="1" aria-label="다음 해">›</button>`;
+  return `<div class="statshead" data-pdf>
+      <div class="t"><span class="lbl">${esc(label)}</span><h1>${esc(title)}</h1></div>
+      <div class="pager" data-noprint>${pager}</div>
+      <div class="row" data-noprint>
+        <button class="btn" id="refresh" title="다른 PC에서 입력한 내용 반영">새로고침</button>
+        <button class="btn" id="csv">CSV</button>
+        <button class="btn primary sm" id="pdf" ${S.pdfBusy?"disabled":""}>${S.pdfBusy?"PDF 만드는 중…":"PDF 저장"}</button>
+      </div></div>`;
+}
+const sampleBanner = () => `<div class="samplebanner" data-pdf><span>예시 데이터로 미리보는 중입니다 · 실제 기록이 아니며 저장되지 않습니다</span><button class="btn" data-sample-off data-noprint>예시 끄기</button></div>`;
+function emptyState(msg, loading){
+  return `<div class="card empty"><h2>${esc(msg)}</h2>
+    ${S.loadErr?`<div class="notice warn">${esc(S.loadErr)}</div>`:""}
+    ${loading?"":`<div class="sub">‘초진 입력’ 탭에서 기록을 추가하면 그래프와 크로스 통계가 여기에 나타납니다.</div>
+    <div class="row" style="justify-content:center"><button class="btn" data-goto="input">초진 입력으로</button><button class="btn" data-sample-on>예시로 화면 미리보기</button></div>`}</div>`;
+}
+function typeKpi(A,N){ return `외래 ${A.type["외래"]}명 (${pct(A.type["외래"],N)}%) · 입원 ${A.type["입원"]}명 (${pct(A.type["입원"],N)}%)`; }
+const FOOT = () => `<div class="foot" data-pdf>※ 내원 동기·클리닉은 복수 선택이 가능해 항목 합계가 초진 수보다 클 수 있습니다. 모든 비율은 환자 수 기준입니다. · 생성 ${localDate()}</div>`;
+
+function renderMonthly(){
+  const key="m:"+S.ym, useSample=S.sample.monthly;
+  const docs = useSample ? sampleDocs(S.ym) : (S.cache[key]||[]);
+  const A=agg(docs), N=A.total;
+  const head=statsHead("monthly", ymLabel(S.ym)+" 초진 통계", "성동필한방병원 · 월간 초진 리포트");
+  if(!N){ const loading=!useSample && !S.cache[key]; $("#main").innerHTML = head + emptyState(loading? "불러오는 중…" : ymLabel(S.ym)+"에 입력된 초진이 없습니다", loading && !S.loadErr); return; }
+  const prev = useSample ? sampleDocs(shiftYm(S.ym,-1)).length : S.prevCount[S.ym];
+  let delta="전월 기록 없음";
+  if(prev>0){ const d=N-prev; delta = `전월 ${prev}명 대비 <span class="${d>=0?"up":"down"}">${d>=0?"▲":"▼"} ${Math.abs(d)}명 (${d>=0?"+":""}${pct(d,prev)}%)</span>`; }
+  const dim=daysIn(S.ym); const dayVals=[...Array(dim)].map((_,i)=>A.day[i+1]||0);
+  const tg=top1(A.group), tm=top1(A.motive), tc=top1(A.clinic);
+  const td=top1(Object.assign({},A.detail["성동구"],A.detail["동대문구"]));
+  $("#main").innerHTML = head + (useSample?sampleBanner():"") + `
+    <div class="kpis" data-pdf>
+      <div class="kpi hero"><span class="lbl">초진 총수</span><span class="v">${N}명</span><span class="s">${delta}</span></div>
+      <div class="kpi"><span class="lbl">내원 종류</span><span class="v">외래 ${A.type["외래"]} · 입원 ${A.type["입원"]}</span><span class="s">입원 비율 ${pct(A.type["입원"],N)}%</span></div>
+      <div class="kpi"><span class="lbl">최다 지역</span><span class="v">${esc(tg?rLabel(tg[0]):"-")}</span><span class="s">${tg?tg[1]+"명 · "+pct(tg[1],N)+"%":""}${td?" · 최다 동 "+esc(td[0]):""}</span></div>
+      <div class="kpi"><span class="lbl">최다 내원 동기</span><span class="v">${esc(tm?tm[0]:"-")}</span><span class="s">${tm?tm[1]+"명 · "+pct(tm[1],N)+"%":""}</span></div>
+      <div class="kpi"><span class="lbl">최다 클리닉</span><span class="v">${esc(tc?tc[0]:"-")}</span><span class="s">${tc?tc[1]+"명 · "+pct(tc[1],N)+"%":""}</span></div>
+    </div>
+    ${colChart("일별 초진", dayVals, dayVals.map((_,i)=>String(i+1)), "1일~"+dim+"일")}
+    <div class="grid2">
+      ${barChart("내원 종류", TYPES.map(t=>[t,A.type[t]]), N)}
+      ${barChart("지역", sortDesc(A.group,RKEYS).map(([k,v])=>[rLabel(k),v]), N)}
+    </div>
+    <div class="grid2">
+      ${barChart("내원 동기", sortDesc(A.motive,MOTIVES), N, "복수 선택 포함")}
+      ${barChart("클리닉 및 진료", sortDesc(A.clinic,CLINICS), N, "복수 선택 포함")}
+    </div>
+    <div class="grid2">${dongCharts(A,N)}</div>
+    ${crossSections(docs)}
+    ${FOOT()}`;
+}
+
+function renderAnnual(){
+  const key="y:"+S.year, useSample=S.sample.annual, Y=S.year;
+  const docs = useSample ? [...Array(12)].flatMap((_,i)=>sampleDocs(Y+"-"+pad(i+1))) : (S.cache[key]||[]);
+  const A=agg(docs), N=A.total;
+  const head=statsHead("annual", Y+"년 초진 통계", "성동필한방병원 · 연간 초진 리포트");
+  if(!N){ const loading=!useSample && !S.cache[key]; $("#main").innerHTML = head + emptyState(loading? "불러오는 중…" : Y+"년에 입력된 초진이 없습니다", loading && !S.loadErr); return; }
+  const mv=[...Array(12)].map((_,i)=>A.month[i+1]||0);
+  const active=mv.filter(v=>v>0).length, best=mv.indexOf(Math.max(...mv));
+  const tm=top1(A.motive), tc=top1(A.clinic);
+  const monthCols=[...Array(12)].map((_,i)=>(i+1)+"월");
+  const moF=d=>[(+String(d.date).slice(5,7))+"월"];
+  $("#main").innerHTML = head + (useSample?sampleBanner():"") + `
+    <div class="kpis" data-pdf>
+      <div class="kpi hero"><span class="lbl">${Y}년 초진 총수</span><span class="v">${N}명</span><span class="s">기록된 ${active}개월 · 월평균 ${active?Math.round(N/active):0}명</span></div>
+      <div class="kpi"><span class="lbl">내원 종류</span><span class="v">외래 ${A.type["외래"]} · 입원 ${A.type["입원"]}</span><span class="s">입원 비율 ${pct(A.type["입원"],N)}%</span></div>
+      <div class="kpi"><span class="lbl">최다 월</span><span class="v">${best+1}월</span><span class="s">${mv[best]}명</span></div>
+      <div class="kpi"><span class="lbl">최다 내원 동기</span><span class="v">${esc(tm?tm[0]:"-")}</span><span class="s">${tm?tm[1]+"명 · "+pct(tm[1],N)+"%":""}</span></div>
+      <div class="kpi"><span class="lbl">최다 클리닉</span><span class="v">${esc(tc?tc[0]:"-")}</span><span class="s">${tc?tc[1]+"명 · "+pct(tc[1],N)+"%":""}</span></div>
+    </div>
+    ${colChart("월별 초진 추이", mv, monthCols, null, true)}
+    <div class="grid2">
+      ${barChart("내원 종류", TYPES.map(t=>[t,A.type[t]]), N)}
+      ${barChart("지역", sortDesc(A.group,RKEYS).map(([k,v])=>[rLabel(k),v]), N)}
+    </div>
+    <div class="grid2">
+      ${barChart("내원 동기", sortDesc(A.motive,MOTIVES), N, "복수 선택 포함")}
+      ${barChart("클리닉 및 진료", sortDesc(A.clinic,CLINICS), N, "복수 선택 포함")}
+    </div>
+    <div class="grid2">${dongCharts(A,N)}</div>
+    ${crossSections(docs)}
+    ${heatTable("내원종류 × 월", cross(docs,d=>[d.visitType],moF), TYPES, monthCols, "내원종류", "월", "월별 외래·입원 추이")}
+    ${heatTable("내원동기 × 월", cross(docs,d=>d.motives,moF), MOTIVES, monthCols, "내원동기", "월", "채널별 계절성 — 광고 집행 시기 판단")}
+    ${heatTable("클리닉 × 월", cross(docs,d=>d.clinics,moF), CLINICS, monthCols, "클리닉", "월", "진료별 계절성 — 시즌 프로모션 기획")}
+    ${FOOT()}`;
+}
+
+function render(){
+  document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected", t.dataset.view===S.view));
+  if(S.view==="input") renderInput(); else if(S.view==="monthly") renderMonthly(); else renderAnnual();
+}
+
+// ---------- 저장/삭제 ----------
+async function save(){
+  const f=S.form; if(S.saving) return;
+  S.saving=true; render();
+  const row={visit_date:f.date, visit_type:f.type, region_group:f.group, region_detail:f.detail||"",
+    motives:MOTIVES.filter(m=>f.motives.includes(m)), clinics:CLINICS.filter(c=>f.clinics.includes(c))};
+  const {error}=await sb.from("visits").insert(row);
+  S.saving=false;
+  if(error){ if(authErr(error)) showLogin(); toast(authErr(error)?"로그인이 만료되었습니다. 다시 로그인해 주세요.":"저장하지 못했습니다. 인터넷 연결을 확인하고 다시 눌러 주세요."); render(); return; }
+  S.form={date:f.date, type:f.type, group:"", detail:"", motives:[], clinics:[]};
+  invalidate(f.date);
+  await loadToday();
+  toast("저장했습니다 · "+(f.date===localDate()?"오늘":f.date)+" "+S.today.length+"번째 초진");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+async function del(id){
+  S.confirmDel=null;
+  const {error}=await sb.from("visits").delete().eq("id",id);
+  if(error) toast("삭제하지 못했습니다. 다시 시도해 주세요.");
+  else { toast("삭제했습니다"); invalidate(S.form.date); }
+  await loadToday();
+}
+
+// ---------- 내보내기 ----------
+function currentDocs(){
+  if(S.view==="monthly") return S.sample.monthly? sampleDocs(S.ym) : (S.cache["m:"+S.ym]||[]);
+  return S.sample.annual? [...Array(12)].flatMap((_,i)=>sampleDocs(S.year+"-"+pad(i+1))) : (S.cache["y:"+S.year]||[]);
+}
+const fileBase = () => "성동필한방병원_초진통계_"+(S.view==="monthly"? S.ym : S.year+"년")+(S.sample[S.view]?"_예시":"");
+function downloadBlob(blob, name){ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},1000); }
+function exportCsv(){
+  const docs=currentDocs(); if(!docs.length){ toast("내보낼 기록이 없습니다"); return; }
+  const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
+  const lines=[["내원일","내원종류","지역","상세지역","내원동기","클리닉"].map(q).join(",")];
+  docs.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))).forEach(d=>lines.push([d.date,d.visitType,rLabel(d.regionGroup),d.regionDetail,d.motives.join(" / "),d.clinics.join(" / ")].map(q).join(",")));
+  downloadBlob(new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"}), fileBase()+".csv");
+}
+async function exportPdf(){
+  if(S.pdfBusy) return;
+  if(!currentDocs().length){ toast("PDF로 만들 기록이 없습니다"); return; }
+  if(!window.jspdf || !window.html2canvas){ toast("PDF 도구를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요."); return; }
+  S.pdfBusy=true; render();
+  try{
+    const {jsPDF}=window.jspdf; const pdf=new jsPDF({unit:"mm",format:"a4",orientation:"portrait"});
+    const PW=210, PH=297, MX=12, MY=12, CW=PW-2*MX, CH=PH-2*MY;
+    let y=MY;
+    for(const sec of document.querySelectorAll("#main [data-pdf]")){
+      const canvas=await html2canvas(sec,{scale:2, backgroundColor:"#ffffff", windowWidth:1100, logging:false,
+        onclone:(d)=>{ d.documentElement.setAttribute("data-theme","light"); d.body.classList.add("pdf"); }});
+      let w=CW, h=canvas.height*w/canvas.width;
+      if(h>CH){ w=w*CH/h; h=CH; }
+      if(y+h>PH-MY && y>MY){ pdf.addPage(); y=MY; }
+      pdf.addImage(canvas.toDataURL("image/jpeg",0.92),"JPEG",MX+(CW-w)/2,y,w,h);
+      y+=h+5;
+    }
+    const n=pdf.getNumberOfPages();
+    for(let i=1;i<=n;i++){ pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(140); pdf.text(i+" / "+n, PW-MX, PH-5, {align:"right"}); }
+    pdf.save(fileBase()+".pdf");
+  }catch(e){ console.error(e); toast("PDF를 만들지 못했습니다. 다시 시도해 주세요."); }
+  finally{ S.pdfBusy=false; render(); }
+}
+
+// ---------- 이벤트 ----------
+document.addEventListener("click", e=>{
+  const t=e.target.closest("button"); if(!t || !$("#app").contains(t)) return;
+  if(t.dataset.view){ go(t.dataset.view); return; }
+  if(t.dataset.goto){ go(t.dataset.goto); return; }
+  const f=S.form;
+  if(t.dataset.g){
+    const v=t.dataset.v, g=t.dataset.g;
+    if(g==="type") f.type=v;
+    else if(g==="group"){ if(f.group!==v){ f.group=v; f.detail=""; } }
+    else if(g==="detail") f.detail = f.detail===v ? "" : v;
+    else { const arr = g==="motive"? f.motives : f.clinics; const i=arr.indexOf(v); i>=0? arr.splice(i,1) : arr.push(v); }
+    render(); return;
+  }
+  if(t.id==="f-save"){ save(); return; }
+  if(t.id==="f-reset"){ S.form={date:f.date,type:"",group:"",detail:"",motives:[],clinics:[]}; render(); return; }
+  if(t.dataset.del){ S.confirmDel=t.dataset.del; render(); return; }
+  if(t.hasAttribute("data-del-no")){ S.confirmDel=null; render(); return; }
+  if(t.dataset.delYes){ del(t.dataset.delYes); return; }
+  if(t.dataset.ym){ S.ym=shiftYm(S.ym,+t.dataset.ym); ensureData(); render(); return; }
+  if(t.dataset.yr){ S.year+=(+t.dataset.yr); ensureData(); render(); return; }
+  if(t.dataset.level){ S.crossLevel=t.dataset.level; store.set("crossLevel",S.crossLevel); render(); return; }
+  if(t.dataset.pct){ S.pctMode=t.dataset.pct; store.set("pctMode",S.pctMode); render(); return; }
+  if(t.hasAttribute("data-sample-on")){ S.sample[S.view]=true; render(); return; }
+  if(t.hasAttribute("data-sample-off")){ S.sample[S.view]=false; ensureData(); render(); return; }
+  if(t.id==="refresh"){ refresh(); toast("최신 기록을 불러왔습니다"); return; }
+  if(t.id==="pdf"){ exportPdf(); return; }
+  if(t.id==="csv"){ exportCsv(); return; }
+  if(t.id==="logout"){ sb.auth.signOut(); return; }
+});
+document.addEventListener("change", e=>{
+  if(e.target.id==="f-date" && e.target.value){ S.form.date=e.target.value; loadToday(); render(); }
+  if(e.target.id==="ym" && e.target.value){ S.ym=e.target.value; ensureData(); render(); }
+});
+const VIEWS=["input","monthly","annual"];
+function go(v){ if(!VIEWS.includes(v)) v="input"; S.view=v; if(location.hash!=="#"+v) history.replaceState(null,"","#"+v); ensureData(); render(); window.scrollTo(0,0); }
+window.addEventListener("hashchange",()=>{ const v=location.hash.slice(1); if(VIEWS.includes(v) && v!==S.view) go(v); });
+// 다른 PC에서 입력한 내용: 창으로 돌아올 때 다시 불러오기
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && !$("#app").hidden){ if(S.view==="input") loadToday(); else refresh(); } });
+
+// ---------- 로그인 ----------
+function showLogin(){ $("#app").hidden=true; $("#login").hidden=false; setTimeout(()=>$("#pw").focus(),0); }
+function showApp(){
+  $("#login").hidden=true; $("#app").hidden=false;
+  S.view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "input";
+  S.cache={}; render(); loadToday(); ensureData();
+}
+$("#login-form").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const pw=$("#pw").value, err=$("#login-err"), btn=$("#login-btn");
+  if(!sb){ err.textContent="사이트 설정이 끝나지 않았습니다. 관리자에게 문의하세요 (README의 Supabase 설정)."; return; }
+  btn.disabled=true; btn.textContent="확인 중…"; err.textContent="";
+  const {error}=await sb.auth.signInWithPassword({email:C.STAFF_EMAIL, password:pw});
+  btn.disabled=false; btn.textContent="들어가기";
+  if(error){ err.textContent = /invalid/i.test(error.message) ? "비밀번호가 맞지 않습니다." : "로그인하지 못했습니다. 인터넷 연결을 확인해 주세요."; $("#pw").select(); return; }
+  $("#pw").value="";
+});
+
+if(!sb){ showLogin(); $("#login-err").textContent = configured ? "Supabase 라이브러리를 불러오지 못했습니다. 새로고침해 주세요." : "아직 Supabase 설정 전입니다. index.html 상단 APP_CONFIG를 채워 주세요."; }
+else{
+  sb.auth.onAuthStateChange((ev, session)=>{
+    if(ev==="SIGNED_IN" && $("#app").hidden) showApp();
+    if(ev==="SIGNED_OUT") showLogin();
+  });
+  sb.auth.getSession().then(({data})=>{ if(data.session){ if($("#app").hidden) showApp(); } else showLogin(); });
+}
+})();
+</script>
+</body>
+</html>
