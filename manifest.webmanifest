@@ -1,6 +1,6 @@
 {
-  "name": "성동필한방병원 초진 통계",
-  "short_name": "초진 통계",
+  "name": "성동필 초진 및 소개자 관리",
+  "short_name": "초진·소개 관리",
   "start_url": "./#input",
   "display": "standalone",
   "background_color": "#f3f6f4",
