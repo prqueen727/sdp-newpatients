@@ -255,7 +255,8 @@ const REGIONS = [
 ];
 const MOTIVES = ["지인 소개","간판","지나가다","전단지","거주지","버스광고","인터넷 검색","AI 검색","기타"];
 const CLINICS = ["도수치료","수술후 재활","주사/수액","한약/보약","다이어트","소화불량","여성질환","예방접종","척추질환","관절질환","안면마비","교통사고","기타"];
-const RELATIONS = ["가족","친구·지인","직장 동료","이웃","기존 환자끼리","기타"];
+const MOU = "협력기관(MOU)";
+const RELATIONS = ["가족","친구·지인","직장 동료","이웃","기존 환자끼리",MOU,"기타"];
 const REF_MOTIVE = "지인 소개";
 const RKEYS = REGIONS.map(r=>r.key);
 const rLabel = k => (REGIONS.find(r=>r.key===k)||{label:k}).label;
@@ -364,28 +365,31 @@ function refIdx(){
   return {byId, kids, parent};
 }
 function mask(n){ const c=[...String(n||"")]; if(c.length<=1) return c.join(""); if(c.length===2) return c[0]+"*"; return c[0]+"*".repeat(c.length-2)+c[c.length-1]; }
-const shown = p => p ? (S.maskNames? mask(p.name) : p.name) : "(삭제됨)";
+const isOrg = p => p && String(p.chart_no).startsWith("MOU-");
+const shown = p => p ? (S.maskNames && !isOrg(p) ? mask(p.name) : p.name) : "(삭제됨)";
+// 협력기관은 차트번호가 없으면 "MOU-기관명"을 번호 대신 씀
+const refChartOf = st => st.rChart.trim() || (st.relation===MOU && st.rName.trim() ? "MOU-"+st.rName.trim() : "");
 function descCount(id, kids, seen=new Set()){ let n=0; for(const r of (kids[id]||[])){ if(seen.has(r.referred_id)) continue; seen.add(r.referred_id); n+=1+descCount(r.referred_id,kids,seen); } return n; }
 function personByChart(c){ c=String(c||"").trim(); return c? S.people.find(p=>p.chart_no===c) : null; }
 function rfStatus(st){
   const filled = st.chart.trim()||st.name.trim()||st.referrerId||st.rChart.trim()||st.rName.trim()||st.relation;
   if(!filled) return {s:"none"};
   const sel = st.referrerId && S.people.find(p=>p.id===st.referrerId);
-  const refChart = sel ? sel.chart_no : st.rChart.trim();
+  const refChart = sel ? sel.chart_no : refChartOf(st);
   if(st.chart.trim() && refChart && st.chart.trim()===refChart) return {s:"bad", msg:"환자와 소개자의 차트번호가 같습니다."};
   const ex = personByChart(st.chart);
   if(ex && S.referrals.some(r=>r.referred_id===ex.id)) return {s:"bad", msg:"이 차트번호는 이미 소개 기록이 있습니다."};
   const miss=[]; if(!st.chart.trim()) miss.push("환자 차트번호"); if(!st.name.trim() && !ex) miss.push("환자 이름");
-  if(!sel && !(st.rChart.trim() && (st.rName.trim()||personByChart(st.rChart)))) miss.push("소개자");
+  if(!sel && !(refChart && (st.rName.trim()||personByChart(refChart)))) miss.push(st.relation===MOU?"협력기관 이름":"소개자");
   if(!st.relation) miss.push("관계");
   return miss.length? {s:"partial", miss} : {s:"ok"};
 }
 async function addReferral(st, date, visitId){
   const sel = st.referrerId && S.people.find(p=>p.id===st.referrerId);
-  const exRef = !sel && personByChart(st.rChart), exPat = personByChart(st.chart);
+  const exRef = !sel && personByChart(refChartOf(st)), exPat = personByChart(st.chart);
   const {error}=await sb.rpc("add_referral",{
     p_referred_chart: st.chart.trim(), p_referred_name: st.name.trim() || (exPat? exPat.name : ""),
-    p_referrer_chart: sel? sel.chart_no : st.rChart.trim(), p_referrer_name: sel? sel.name : (st.rName.trim() || (exRef? exRef.name : "")),
+    p_referrer_chart: sel? sel.chart_no : refChartOf(st), p_referrer_name: sel? sel.name : (st.rName.trim() || (exRef? exRef.name : "")),
     p_relation: st.relation, p_date: date, p_visit_id: visitId||null, p_memo: (st.memo||"").trim()});
   if(error){
     const m=error.message||"";
@@ -566,7 +570,8 @@ function refForm(k, withDate){
   const st=S[k], sel=st.referrerId && S.people.find(p=>p.id===st.referrerId), {kids}=refIdx();
   let refPart;
   if(sel) refPart=`<div class="row"><span class="tag r" style="font-size:14px;padding:4px 10px">${esc(sel.name)} · ${esc(sel.chart_no)}</span><span class="hint">지금까지 ${(kids[sel.id]||[]).length}명 소개</span><button class="btn" data-rf="clear" data-k="${k}">변경</button></div>`;
-  else if(st.newRef) refPart=`<div class="row"><input class="txt" id="${k}-rchart" data-k="${k}" data-f="rChart" placeholder="소개자 차트번호" value="${esc(st.rChart)}" autocomplete="off"><input class="txt" id="${k}-rname" data-k="${k}" data-f="rName" placeholder="소개자 이름" value="${esc(st.rName)}" autocomplete="off"></div>
+  else if(st.newRef) refPart=`<div class="row"><input class="txt" id="${k}-rchart" data-k="${k}" data-f="rChart" placeholder="${st.relation===MOU?"기관 코드 (없으면 비워 두세요)":"소개자 차트번호"}" value="${esc(st.rChart)}" autocomplete="off"><input class="txt" id="${k}-rname" data-k="${k}" data-f="rName" placeholder="${st.relation===MOU?"협력기관 이름":"소개자 이름"}" value="${esc(st.rName)}" autocomplete="off"></div>
+      ${st.relation===MOU?`<div class="hint">협력기관은 차트번호 없이 기관 이름만 넣어도 저장됩니다.</div>`:""}
       <div class="hint" id="${k}-rhint">${rHint(st,k)}</div><button class="linkbtn" data-rf="search" data-k="${k}">← 등록된 분에서 찾기</button>`;
   else refPart=`<input class="txt wide" id="${k}-search" data-k="${k}" data-f="search" placeholder="소개자 이름 또는 차트번호로 찾기" value="${esc(st.search)}" autocomplete="off"><div class="picklist" id="${k}-results">${rfResults(k)}</div>`;
   return `<div class="refgrid">
