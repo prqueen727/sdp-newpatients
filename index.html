@@ -168,9 +168,9 @@ body.pdf table.x thead th, body.pdf table.x tbody th{position:static}
 <!-- ===== 설정: Supabase 프로젝트 정보 (README 참고) ===== -->
 <script>
 window.APP_CONFIG = {
-  SUPABASE_URL: "https://hbpvyfrkzkbkxlpgogio.supabase.co",
-  SUPABASE_ANON_KEY: "sb_publishable_VRvvJyKU1R-l4c96VrFNWw_YFx5B4zS",
-  STAFF_EMAIL: "hyewon.lee76@gmail.com"   // 관리자 계정 (비밀번호 재설정 메일이 이 주소로 감)
+  SUPABASE_URL: "https://gdjlrerldpscimjkwtgf.supabase.co",   // 서울 프로젝트
+  SUPABASE_ANON_KEY: "sb_publishable_I3RhhGYxbNcRhfvtUq1ywg_rMPEZe8E",
+  STAFF_EMAIL: "hyewon.lee76@gmail.com"   // 로그인 계정 (비밀번호 재설정 메일이 이 주소로 감)
 };
 </script>
 
@@ -178,7 +178,7 @@ window.APP_CONFIG = {
   <form class="card" id="login-form" autocomplete="on">
     <div class="mark" aria-hidden="true">필</div>
     <div><h1 style="font-size:22px">성동필한방병원</h1><div class="sub">초진환자 통계 · 직원 전용</div></div>
-    <input type="text" name="username" autocomplete="username" hidden>
+    <input type="text" name="username" autocomplete="username" value="성동필 초진 통계" hidden>
     <label class="field" style="gap:6px"><span class="lbl">비밀번호</span>
       <input type="password" id="pw" autocomplete="current-password" required placeholder="비밀번호 입력"></label>
     <div class="err" id="login-err" role="alert"></div>
@@ -714,7 +714,7 @@ $("#forgot").addEventListener("click", async ()=>{
   err.textContent="보내는 중…";
   const {error}=await sb.auth.resetPasswordForEmail(C.STAFF_EMAIL,{redirectTo: location.origin+location.pathname});
   err.textContent = error ? (/rate|seconds/i.test(error.message) ? "방금 보냈습니다. 잠시 후 다시 시도해 주세요." : "메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.")
-                          : "관리자 메일로 재설정 링크를 보냈습니다. 메일의 링크를 누르면 새 비밀번호를 정할 수 있습니다.";
+                          : "관리자 메일로 재설정 링크를 보냈습니다. 관리자에게 새 비밀번호를 요청하세요.";
 });
 $("#reset-form").addEventListener("submit", async e=>{
   e.preventDefault();
@@ -736,12 +736,12 @@ function showApp(){
 }
 $("#login-form").addEventListener("submit", async e=>{
   e.preventDefault();
-  const pw=$("#pw").value, err=$("#login-err"), btn=$("#login-btn");
+  const email=C.STAFF_EMAIL, pw=$("#pw").value, err=$("#login-err"), btn=$("#login-btn");
   if(!sb){ err.textContent="사이트 설정이 끝나지 않았습니다. 관리자에게 문의하세요 (README의 Supabase 설정)."; return; }
   btn.disabled=true; btn.textContent="확인 중…"; err.textContent="";
-  const {error}=await sb.auth.signInWithPassword({email:C.STAFF_EMAIL, password:pw});
+  const {error}=await sb.auth.signInWithPassword({email, password:pw});
   btn.disabled=false; btn.textContent="들어가기";
-  if(error){ err.textContent = /invalid/i.test(error.message) ? "비밀번호가 맞지 않습니다." : "로그인하지 못했습니다. 인터넷 연결을 확인해 주세요."; $("#pw").select(); return; }
+  if(error){ err.textContent = /invalid/i.test(error.message) ? "비밀번호가 맞지 않습니다." : /confirm/i.test(error.message) ? "계정 승인이 필요합니다. 관리자에게 문의하세요." : "로그인하지 못했습니다. 인터넷 연결을 확인해 주세요."; $("#pw").select(); return; }
   $("#pw").value="";
 });
 

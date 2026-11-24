@@ -16,8 +16,10 @@ create table if not exists public.visits (
 create index if not exists visits_visit_date_idx on public.visits (visit_date);
 
 -- 접속을 허용할 계정 목록 (비밀번호 로그인한 계정만 데이터 접근)
+-- role: 'admin' = 사이트 관리자, 'counselor' = 상담실 (추후 소개 관리 권한 구분용)
 create table if not exists public.staff (
-  email text primary key
+  email text primary key,
+  role  text not null default 'counselor'
 );
 alter table public.staff enable row level security;  -- 정책 없음 = 외부에서 읽기/쓰기 불가
 
@@ -40,6 +42,7 @@ create policy "staff read"   on public.visits for select to authenticated using 
 create policy "staff insert" on public.visits for insert to authenticated with check (public.is_staff());
 create policy "staff delete" on public.visits for delete to authenticated using (public.is_staff());
 
--- ▼ 직원 계정 이메일 (index.html 의 STAFF_EMAIL 과 같아야 함)
-insert into public.staff (email) values ('hyewon.lee76@gmail.com')
-on conflict do nothing;
+-- ▼ 접속 허용 계정 (Authentication > Users 에 만든 계정과 이메일이 같아야 함)
+insert into public.staff (email, role) values
+  ('hyewon.lee76@gmail.com', 'admin')
+on conflict (email) do update set role = excluded.role;

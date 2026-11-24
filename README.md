@@ -25,7 +25,7 @@
    → **Allow new users to sign up** 를 **끄기**
 4. **표 만들기**: 왼쪽 **SQL Editor → New query** 에
    `supabase/schema.sql` 내용을 전부 붙여넣고 **Run**
-   - SQL 맨 아래 이메일과 index.html 의 STAFF_EMAIL 을 2번 이메일과 같게 맞추세요.
+   - SQL 맨 아래 staff 목록에 로그인할 계정 이메일을 모두 넣으세요 (admin / counselor).
 5. **접속 정보 복사**: **Project Settings → API** (또는 **Connect** 버튼)
    - `Project URL` (https://xxxx.supabase.co)
    - `anon public` 키 (긴 문자열)
@@ -37,8 +37,7 @@
 ```js
 window.APP_CONFIG = {
   SUPABASE_URL: "https://xxxx.supabase.co",   // Project URL
-  SUPABASE_ANON_KEY: "eyJhbGciOi...",         // anon public 키
-  STAFF_EMAIL: "관리자 이메일"                // 1단계 2번 이메일
+  SUPABASE_ANON_KEY: "sb_publishable_..."     // publishable(anon) 키
 };
 ```
 
