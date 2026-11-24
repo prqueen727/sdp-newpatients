@@ -41,5 +41,5 @@ create policy "staff insert" on public.visits for insert to authenticated with c
 create policy "staff delete" on public.visits for delete to authenticated using (public.is_staff());
 
 -- ▼ 직원 계정 이메일 (index.html 의 STAFF_EMAIL 과 같아야 함)
-insert into public.staff (email) values ('staff@sdphil.local')
+insert into public.staff (email) values ('hyewon.lee76@gmail.com')
 on conflict do nothing;

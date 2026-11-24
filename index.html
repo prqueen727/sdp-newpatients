@@ -170,7 +170,7 @@ body.pdf table.x thead th, body.pdf table.x tbody th{position:static}
 window.APP_CONFIG = {
   SUPABASE_URL: "https://hbpvyfrkzkbkxlpgogio.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_VRvvJyKU1R-l4c96VrFNWw_YFx5B4zS",
-  STAFF_EMAIL: "staff@sdphil.local"
+  STAFF_EMAIL: "hyewon.lee76@gmail.com"   // 관리자 계정 (비밀번호 재설정 메일이 이 주소로 감)
 };
 </script>
 
@@ -183,6 +183,18 @@ window.APP_CONFIG = {
       <input type="password" id="pw" autocomplete="current-password" required placeholder="비밀번호 입력"></label>
     <div class="err" id="login-err" role="alert"></div>
     <button class="btn primary" id="login-btn" type="submit">들어가기</button>
+    <button class="logout" id="forgot" type="button" style="align-self:center">비밀번호를 잊으셨나요?</button>
+  </form>
+  <form class="card" id="reset-form" hidden>
+    <div class="mark" aria-hidden="true">필</div>
+    <div><h1 style="font-size:22px">새 비밀번호 정하기</h1><div class="sub">상담실 직원들도 이 비밀번호로 들어옵니다.</div></div>
+    <input type="text" name="username" autocomplete="username" hidden>
+    <label class="field" style="gap:6px"><span class="lbl">새 비밀번호 (8자 이상)</span>
+      <input type="password" id="pw1" autocomplete="new-password" minlength="8" required></label>
+    <label class="field" style="gap:6px"><span class="lbl">한 번 더 입력</span>
+      <input type="password" id="pw2" autocomplete="new-password" minlength="8" required></label>
+    <div class="err" id="reset-err" role="alert"></div>
+    <button class="btn primary" id="reset-btn" type="submit">비밀번호 저장</button>
   </form>
 </div>
 
@@ -683,8 +695,31 @@ window.addEventListener("hashchange",()=>{ const v=location.hash.slice(1); if(VI
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && !$("#app").hidden){ if(S.view==="input") loadToday(); else refresh(); } });
 
 // ---------- 로그인 ----------
-function showLogin(){ $("#app").hidden=true; $("#login").hidden=false; setTimeout(()=>$("#pw").focus(),0); }
+let recovering = /type=recovery/.test(location.hash);
+function showLogin(){ $("#app").hidden=true; $("#login").hidden=false; $("#login-form").hidden=false; $("#reset-form").hidden=true; setTimeout(()=>$("#pw").focus(),0); }
+function showReset(){ $("#app").hidden=true; $("#login").hidden=false; $("#login-form").hidden=true; $("#reset-form").hidden=false; setTimeout(()=>$("#pw1").focus(),0); }
+$("#forgot").addEventListener("click", async ()=>{
+  const err=$("#login-err");
+  if(!sb){ err.textContent="사이트 설정이 끝나지 않았습니다."; return; }
+  err.textContent="보내는 중…";
+  const {error}=await sb.auth.resetPasswordForEmail(C.STAFF_EMAIL,{redirectTo: location.origin+location.pathname});
+  err.textContent = error ? (/rate|seconds/i.test(error.message) ? "방금 보냈습니다. 잠시 후 다시 시도해 주세요." : "메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.")
+                          : "관리자 메일로 재설정 링크를 보냈습니다. 메일의 링크를 누르면 새 비밀번호를 정할 수 있습니다.";
+});
+$("#reset-form").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const p1=$("#pw1").value, p2=$("#pw2").value, err=$("#reset-err"), btn=$("#reset-btn");
+  if(p1.length<8){ err.textContent="8자 이상으로 정해 주세요."; return; }
+  if(p1!==p2){ err.textContent="두 비밀번호가 다릅니다."; return; }
+  btn.disabled=true; err.textContent="";
+  const {error}=await sb.auth.updateUser({password:p1});
+  btn.disabled=false;
+  if(error){ err.textContent = /different|same/i.test(error.message) ? "이전과 다른 비밀번호로 정해 주세요." : /expired|session/i.test(error.message) ? "링크가 만료되었습니다. 로그인 화면에서 다시 요청해 주세요." : "저장하지 못했습니다. 다시 시도해 주세요."; return; }
+  recovering=false; $("#pw1").value=$("#pw2").value=""; history.replaceState(null,"",location.pathname+"#input");
+  toast("새 비밀번호를 저장했습니다"); showApp();
+});
 function showApp(){
+  if(recovering){ showReset(); return; }
   $("#login").hidden=true; $("#app").hidden=false;
   S.view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "input";
   S.cache={}; render(); loadToday(); ensureData();
@@ -703,6 +738,7 @@ $("#login-form").addEventListener("submit", async e=>{
 if(!sb){ showLogin(); $("#login-err").textContent = configured ? "Supabase 라이브러리를 불러오지 못했습니다. 새로고침해 주세요." : "아직 Supabase 설정 전입니다. index.html 상단 APP_CONFIG를 채워 주세요."; }
 else{
   sb.auth.onAuthStateChange((ev, session)=>{
+    if(ev==="PASSWORD_RECOVERY"){ recovering=true; showReset(); return; }
     if(ev==="SIGNED_IN" && $("#app").hidden) showApp();
     if(ev==="SIGNED_OUT") showLogin();
   });

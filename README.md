@@ -18,14 +18,14 @@
    - 이름: `chojin-stats` (자유), 지역: **Northeast Asia (Seoul)**
    - Database password는 아무거나 길게 정하고 따로 보관 (사이트 비밀번호와 다름)
 2. **직원 계정 만들기**: 왼쪽 메뉴 **Authentication → Users → Add user → Create new user**
-   - Email: `staff@sdphil.local` (실제 메일일 필요 없음)
+   - Email: 관리자 이메일 (비밀번호 재설정 메일을 받을 주소)
    - Password: **직원들이 쓸 사이트 비밀번호** (8자 이상 권장)
    - **Auto Confirm User** 체크
 3. **외부인 가입 막기 (중요)**: **Authentication → Sign In / Providers**
    → **Allow new users to sign up** 를 **끄기**
 4. **표 만들기**: 왼쪽 **SQL Editor → New query** 에
    `supabase/schema.sql` 내용을 전부 붙여넣고 **Run**
-   - 2번에서 다른 이메일을 썼다면 SQL 맨 아래 이메일도 같게 바꾸세요.
+   - SQL 맨 아래 이메일과 index.html 의 STAFF_EMAIL 을 2번 이메일과 같게 맞추세요.
 5. **접속 정보 복사**: **Project Settings → API** (또는 **Connect** 버튼)
    - `Project URL` (https://xxxx.supabase.co)
    - `anon public` 키 (긴 문자열)
@@ -38,7 +38,7 @@
 window.APP_CONFIG = {
   SUPABASE_URL: "https://xxxx.supabase.co",   // Project URL
   SUPABASE_ANON_KEY: "eyJhbGciOi...",         // anon public 키
-  STAFF_EMAIL: "staff@sdphil.local"           // 1단계 2번 이메일
+  STAFF_EMAIL: "관리자 이메일"                // 1단계 2번 이메일
 };
 ```
 
@@ -60,8 +60,10 @@ window.APP_CONFIG = {
 
 ## 운영 메모
 
-- **비밀번호 바꾸기**: Supabase → Authentication → Users → 직원 계정 → *Reset password* 대신
-  계정 메뉴에서 새 비밀번호 지정. 바꾸면 다른 PC는 다음 로그인 때 새 비밀번호가 필요합니다.
+- **비밀번호 바꾸기 / 잊었을 때**: 로그인 화면의 *비밀번호를 잊으셨나요?* → 관리자 메일로 온 링크를 누르면
+  사이트에서 새 비밀번호를 정합니다. 이 링크가 사이트로 돌아오려면 Supabase →
+  Authentication → URL Configuration 의 **Site URL** 이 Vercel 주소여야 합니다.
+  바꾸면 다른 PC는 다음 로그인 때 새 비밀번호가 필요합니다.
 - 한 번 로그인하면 그 PC에서는 로그인이 유지됩니다. 공용 PC면 **로그아웃**을 눌러 주세요.
 - 다른 PC에서 입력한 내용은 통계 화면의 **새로고침** 버튼이나 창을 다시 열 때 반영됩니다.
 - **백업**: 연간 통계 화면의 **CSV** 버튼으로 엑셀 파일을 받아 두세요.
