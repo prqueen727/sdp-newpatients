@@ -380,7 +380,12 @@ function rfStatus(st){
   const ex = personByChart(st.chart);
   if(ex && S.referrals.some(r=>r.referred_id===ex.id)) return {s:"bad", msg:"이 차트번호는 이미 소개 기록이 있습니다."};
   const miss=[]; if(!st.chart.trim()) miss.push("환자 차트번호"); if(!st.name.trim() && !ex) miss.push("환자 이름");
-  if(!sel && !(refChart && (st.rName.trim()||personByChart(refChart)))) miss.push(st.relation===MOU?"협력기관 이름":"소개자");
+  if(!sel && !(refChart && (st.rName.trim()||personByChart(refChart)))){
+    if(st.relation===MOU) miss.push("협력기관 이름");
+    else if(!st.rName.trim() && !st.rChart.trim()) miss.push("소개자 이름·차트번호");
+    else if(!st.rChart.trim()) miss.push("소개자 차트번호");
+    else miss.push("소개자 이름");
+  }
   if(!st.relation) miss.push("관계");
   return miss.length? {s:"partial", miss} : {s:"ok"};
 }
@@ -554,12 +559,17 @@ function inputState(){
   return {ok: baseOk && (rs.s==="none"||rs.s==="ok"), summary};
 }
 function rfResults(k){
-  const st=S[k], q=st.search.trim();
-  if(!q) return `<div class="hint">이름 일부나 차트번호를 입력하면 등록된 분이 나옵니다. 처음 소개하는 분이면 <button class="linkbtn" data-rf="new" data-k="${k}">새로 등록</button></div>`;
-  const {kids}=refIdx(), ql=q.toLowerCase();
-  const hits=S.people.filter(p=>p.name.toLowerCase().includes(ql)||p.chart_no.includes(q)).slice(0,6);
-  return hits.map(p=>`<button class="pick" data-rf="pick" data-id="${esc(p.id)}" data-k="${k}">${esc(p.name)} · ${esc(p.chart_no)}<small>${(kids[p.id]||[]).length?"지금까지 "+kids[p.id].length+"명 소개":"소개 이력 없음"}</small></button>`).join("")
-    + `<div class="hint">${hits.length?"":"찾는 분이 없습니다. "}<button class="linkbtn" data-rf="new" data-k="${k}">처음 소개하는 분으로 새로 등록</button></div>`;
+  const st=S[k], name=st.rName.trim(), chart=st.rChart.trim();
+  if(!name && !chart) return `<div class="hint">이름을 치면 이미 등록된 분이 아래에 나옵니다. 처음 소개하는 분이면 ${st.relation===MOU?"기관 이름만":"이름과 차트번호를"} 넣으면 새로 등록됩니다.</div>`;
+  const exact=personByChart(chart);
+  if(exact) return `<div class="hint">등록된 분입니다: <b>${esc(exact.name)}</b> · ${esc(exact.chart_no)} — 이 분으로 저장됩니다.</div>`;
+  const {kids}=refIdx(), nl=name.toLowerCase();
+  const hits=S.people.filter(p=>(name && p.name.toLowerCase().includes(nl)) || (chart && p.chart_no.includes(chart))).slice(0,5);
+  const newMsg = st.relation===MOU ? "목록에 없으면 이대로 새 협력기관으로 저장됩니다."
+    : (name && chart) ? "목록에 없으면 이대로 <b>새 소개자</b>로 저장됩니다." : name ? "목록에 없으면 <b>차트번호</b>도 넣어 주세요. 새 소개자로 저장됩니다." : "이름도 넣어 주세요.";
+  return (hits.length?`<div class="hint">이미 등록된 분이면 눌러서 선택하세요:</div>`:"")
+    + hits.map(p=>`<button class="pick" data-rf="pick" data-id="${esc(p.id)}" data-k="${k}">${esc(p.name)} · ${esc(p.chart_no)}<small>${(kids[p.id]||[]).length?"지금까지 "+kids[p.id].length+"명 소개":"소개 이력 없음"}</small></button>`).join("")
+    + `<div class="hint">${newMsg}</div>`;
 }
 function rHint(st,k){ const ex=personByChart(st.rChart); return ex ? `이미 등록된 분입니다: <b>${esc(ex.name)}</b> <button class="linkbtn" data-rf="pick" data-id="${esc(ex.id)}" data-k="${k}">이 분으로 선택</button>` : ""; }
 function pHint(st){
@@ -570,10 +580,8 @@ function refForm(k, withDate){
   const st=S[k], sel=st.referrerId && S.people.find(p=>p.id===st.referrerId), {kids}=refIdx();
   let refPart;
   if(sel) refPart=`<div class="row"><span class="tag r" style="font-size:14px;padding:4px 10px">${esc(sel.name)} · ${esc(sel.chart_no)}</span><span class="hint">지금까지 ${(kids[sel.id]||[]).length}명 소개</span><button class="btn" data-rf="clear" data-k="${k}">변경</button></div>`;
-  else if(st.newRef) refPart=`<div class="row"><input class="txt" id="${k}-rchart" data-k="${k}" data-f="rChart" placeholder="${st.relation===MOU?"기관 코드 (없으면 비워 두세요)":"소개자 차트번호"}" value="${esc(st.rChart)}" autocomplete="off"><input class="txt" id="${k}-rname" data-k="${k}" data-f="rName" placeholder="${st.relation===MOU?"협력기관 이름":"소개자 이름"}" value="${esc(st.rName)}" autocomplete="off"></div>
-      ${st.relation===MOU?`<div class="hint">협력기관은 차트번호 없이 기관 이름만 넣어도 저장됩니다.</div>`:""}
-      <div class="hint" id="${k}-rhint">${rHint(st,k)}</div><button class="linkbtn" data-rf="search" data-k="${k}">← 등록된 분에서 찾기</button>`;
-  else refPart=`<input class="txt wide" id="${k}-search" data-k="${k}" data-f="search" placeholder="소개자 이름 또는 차트번호로 찾기" value="${esc(st.search)}" autocomplete="off"><div class="picklist" id="${k}-results">${rfResults(k)}</div>`;
+  else refPart=`<div class="row"><input class="txt" id="${k}-rname" data-k="${k}" data-f="rName" placeholder="${st.relation===MOU?"협력기관 이름":"소개자 이름"}" value="${esc(st.rName)}" autocomplete="off"><input class="txt" id="${k}-rchart" data-k="${k}" data-f="rChart" placeholder="${st.relation===MOU?"기관 코드 (없으면 비워 두세요)":"소개자 차트번호"}" value="${esc(st.rChart)}" autocomplete="off"></div>
+      <div class="picklist" id="${k}-results">${rfResults(k)}</div>`;
   return `<div class="refgrid">
       <div class="sublist"><span class="lbl">${withDate?"소개받은 분":"이 환자 (소개받은 분)"}</span>
         <div class="row"><input class="txt" id="${k}-chart" data-k="${k}" data-f="chart" placeholder="차트번호" value="${esc(st.chart)}" autocomplete="off"><input class="txt" id="${k}-name" data-k="${k}" data-f="name" placeholder="이름" value="${esc(st.name)}" autocomplete="off"></div>
@@ -957,7 +965,7 @@ document.addEventListener("click", e=>{
     else if(a==="clear"){ st.referrerId=null; st.newRef=false; }
     else if(a==="search"){ st.newRef=false; }
     else if(a==="new"){ st.newRef=true; st.referrerId=null; const q=st.search.trim(); if(q){ if(/^\d+$/.test(q)) st.rChart=q; else st.rName=q; } }
-    render(); const nx=$("#"+t.dataset.k+(a==="new"?"-rchart":a==="search"||a==="clear"?"-search":"-chart")); if(nx && a!=="pick") nx.focus();
+    render(); if(a==="clear"){ const nx=$("#"+t.dataset.k+"-rname"); if(nx) nx.focus(); }
     return;
   }
   // 소개 관리 화면
@@ -996,8 +1004,7 @@ document.addEventListener("input", e=>{
   const el=e.target, k=el.dataset && el.dataset.k, fld=el.dataset && el.dataset.f;
   if(k && fld && S[k]){
     S[k][fld]=el.value;
-    if(fld==="search"){ const r=$("#"+k+"-results"); if(r) r.innerHTML=rfResults(k); }
-    if(fld==="rChart"){ const h=$("#"+k+"-rhint"); if(h) h.innerHTML=rHint(S[k],k); }
+    if(fld==="rName"||fld==="rChart"){ const r=$("#"+k+"-results"); if(r) r.innerHTML=rfResults(k); }
     if(fld==="chart"){ const h=$("#"+k+"-phint"); if(h) h.innerHTML=pHint(S[k]); }
     if(k==="rf"){ const st=inputState(); const b=$("#f-save"); if(b) b.disabled=!st.ok||S.saving; const s=$("#f-summary"); if(s) s.innerHTML=st.summary; }
     if(k==="rf2"){ const b=$("#rf2-save"); if(b) b.disabled=rfStatus(S.rf2).s!=="ok"||S.refSaving; const s=$("#rf2-msg"); if(s) s.innerHTML=rf2Msg(); }
