@@ -460,8 +460,12 @@ function renderInput(){
   $("#main").innerHTML = `
     <div class="row" style="justify-content:space-between;align-items:flex-end">
       <div><h1>초진 입력</h1><div class="sub">초진 1명당 1건씩 입력하세요. 환자 이름 등 개인정보는 저장하지 않습니다.</div></div>
-      <label class="row" style="gap:8px"><span class="lbl">내원일</span><input type="date" id="f-date" class="dateinp" value="${esc(f.date)}" max="${localDate()}"></label>
+      <div class="row" style="gap:8px">
+        <label class="row" style="gap:8px"><span class="lbl">내원일</span><input type="date" id="f-date" class="dateinp" value="${esc(f.date)}" max="${localDate()}"></label>
+        ${f.date!==localDate()?`<button class="btn" id="f-today">오늘로</button>`:""}
+      </div>
     </div>
+    ${f.date!==localDate()?`<div class="notice warn"><b>${esc(f.date)}</b> 날짜로 입력 중입니다. 지난 날짜 기록이 아니라면 ‘오늘로’를 눌러 주세요.</div>`:""}
     <div class="card form">
       <div class="field">
         <div class="field-head"><h2>1. 내원 종류</h2><span class="sub">하나 선택</span></div>
@@ -668,6 +672,7 @@ document.addEventListener("click", e=>{
     else { const arr = g==="motive"? f.motives : f.clinics; const i=arr.indexOf(v); i>=0? arr.splice(i,1) : arr.push(v); }
     render(); return;
   }
+  if(t.id==="f-today"){ setToday(); return; }
   if(t.id==="f-save"){ save(); return; }
   if(t.id==="f-reset"){ S.form={date:f.date,type:"",group:"",detail:"",motives:[],clinics:[]}; render(); return; }
   if(t.dataset.del){ S.confirmDel=t.dataset.del; render(); return; }
@@ -685,14 +690,19 @@ document.addEventListener("click", e=>{
   if(t.id==="logout"){ sb.auth.signOut(); return; }
 });
 document.addEventListener("change", e=>{
-  if(e.target.id==="f-date" && e.target.value){ S.form.date=e.target.value; loadToday(); render(); }
+  if(e.target.id==="f-date" && e.target.value){ S.form.date=e.target.value; S.dateAuto = S.form.date===localDate(); loadToday(); render(); }
   if(e.target.id==="ym" && e.target.value){ S.ym=e.target.value; ensureData(); render(); }
 });
 const VIEWS=["input","monthly","annual"];
 function go(v){ if(!VIEWS.includes(v)) v="input"; S.view=v; if(location.hash!=="#"+v) history.replaceState(null,"","#"+v); ensureData(); render(); window.scrollTo(0,0); }
 window.addEventListener("hashchange",()=>{ const v=location.hash.slice(1); if(VIEWS.includes(v) && v!==S.view) go(v); });
+// 날짜 자동 맞춤: 켜 둔 채 자정을 넘기면 오늘로 바꿈 (지난 날짜를 직접 고른 경우는 유지)
+S.dateAuto = true;
+function setToday(){ S.form.date=localDate(); S.dateAuto=true; if(!$("#app").hidden) loadToday(); render(); }
+function checkDay(){ if(S.dateAuto && S.form.date!==localDate()) setToday(); }
+setInterval(checkDay, 60000);
 // 다른 PC에서 입력한 내용: 창으로 돌아올 때 다시 불러오기
-document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && !$("#app").hidden){ if(S.view==="input") loadToday(); else refresh(); } });
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && !$("#app").hidden){ checkDay(); if(S.view==="input") loadToday(); else refresh(); } });
 
 // ---------- 로그인 ----------
 let recovering = /type=recovery/.test(location.hash);
