@@ -174,6 +174,13 @@ table.x.list tbody tr:hover td{background:var(--sunk)}
 .searchwrap .picklist{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:6;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px;box-shadow:0 6px 20px rgba(0,0,0,.12)}
 .searchwrap .picklist:empty{display:none}
 .detail{border:2px solid var(--accent)}
+/* 도로명 주소 찾기 */
+.addrrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.addrrow .txt{max-width:360px}
+.modal{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.modal-card{background:var(--surface);border-radius:12px;width:100%;max-width:560px;height:min(620px,100%);display:flex;flex-direction:column;overflow:hidden}
+.modal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+#addr-embed{flex:1;min-height:0}
 body.pdf .wrap{max-width:1000px;width:1000px}
 body.pdf [data-noprint]{display:none!important}
 body.pdf .tablewrap{overflow:visible}
@@ -236,6 +243,12 @@ window.APP_CONFIG = {
   </header>
   <main class="wrap" id="main"></main>
 </div>
+<div class="modal" id="addr-modal" hidden>
+  <div class="modal-card" role="dialog" aria-label="도로명 주소 찾기">
+    <div class="modal-head"><b>도로명 주소로 동 찾기</b><button class="btn" id="addr-close">닫기</button></div>
+    <div id="addr-embed"></div>
+  </div>
+</div>
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -247,8 +260,8 @@ window.APP_CONFIG = {
 // ---------- 분류 ----------
 const TYPES = ["외래","입원"];
 const REGIONS = [
-  {key:"성동구", label:"성동구", req:true, details:["왕십리2동","왕십리도선동","마장동","사근동","행당1동","행당2동","응봉동","금호1가동","금호2·3가동","금호4가동","옥수동","성수1가1동","성수1가2동","성수2가1동","성수2가3동","송정동","용답동"]},
-  {key:"동대문구", label:"동대문구", req:true, details:["용신동","제기동","전농1동","전농2동","답십리1동","답십리2동","장안1동","장안2동","청량리동","회기동","휘경1동","휘경2동","이문1동","이문2동"]},
+  {key:"성동구", label:"성동구", req:true, details:["왕십리동","마장동","사근동","행당동","응봉동","금호동","옥수동","성수동","송정동","용답동"]},
+  {key:"동대문구", label:"동대문구", req:true, details:["용신동","제기동","전농동","답십리동","장안동","청량리동","회기동","휘경동","이문동"]},
   {key:"서울 기타", label:"서울 (성동·동대문 외)", req:false, details:["광진구","중랑구","중구","성북구","종로구","용산구","강북구","도봉구","노원구","은평구","서대문구","마포구","양천구","강서구","구로구","금천구","영등포구","동작구","관악구","서초구","강남구","송파구","강동구"]},
   {key:"경기도", label:"경기도", req:false, details:["구리시","남양주시","하남시","성남시","고양시","의정부시","수원시","용인시","경기 기타"]},
   {key:"기타", label:"기타 (인천·지방 등)", req:false, details:[]}
@@ -259,6 +272,17 @@ const MOU = "협력기관(MOU)";
 const RELATIONS = ["가족","친구·지인","직장 동료","이웃","기존 환자끼리",MOU,"기타"];
 const REF_MOTIVE = "지인 소개";
 const RKEYS = REGIONS.map(r=>r.key);
+// 대표 동명: 1·2동, 1가·2가로 나뉜 이름과 법정동(도로명 주소 검색 결과)을 하나로 합침
+const DONG_ALIAS = {
+  "왕십리2동":"왕십리동","왕십리도선동":"왕십리동","상왕십리동":"왕십리동","하왕십리동":"왕십리동","홍익동":"왕십리동","도선동":"왕십리동",
+  "용두동":"용신동","신설동":"용신동"
+};
+function normDong(group, d){
+  d=String(d||"").trim(); if(!d || (group!=="성동구" && group!=="동대문구")) return d;
+  if(DONG_ALIAS[d]) return DONG_ALIAS[d];
+  const s=d.replace(/\d+(?:[·.]\d+)?가/g,"").replace(/\d+/g,"").replace(/[·.]/g,"");   // 금호2·3가동→금호동, 성수1가1동→성수동, 장안1동→장안동
+  return DONG_ALIAS[s] || s;
+}
 const rLabel = k => (REGIONS.find(r=>r.key===k)||{label:k}).label;
 
 // ---------- 유틸 ----------
@@ -302,7 +326,7 @@ S.rf=newRf(); S.rf2=newRf();
 const C = window.APP_CONFIG||{};
 const configured = C.SUPABASE_URL && !/YOUR-/.test(C.SUPABASE_URL) && C.SUPABASE_ANON_KEY && !/YOUR-/.test(C.SUPABASE_ANON_KEY);
 const sb = configured && window.supabase ? window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY) : null;
-const norm = r => ({id:r.id, date:r.visit_date, visitType:r.visit_type, regionGroup:r.region_group, regionDetail:r.region_detail||"", motives:r.motives||[], clinics:r.clinics||[], createdAt:r.created_at});
+const norm = r => ({id:r.id, date:r.visit_date, visitType:r.visit_type, regionGroup:r.region_group, regionDetail:normDong(r.region_group, r.region_detail), motives:r.motives||[], clinics:r.clinics||[], createdAt:r.created_at});
 
 async function fetchRange(from, to){
   let all=[], page=0;
@@ -619,7 +643,12 @@ function renderInput(){
         <div class="chips big type">${TYPES.map(t=>chip("type",t,t,f.type===t)).join("")}</div>
       </div>
       <div class="field">
-        <div class="field-head"><h2>2. 거주 지역</h2><span class="sub">하나 선택</span></div>
+        <div class="field-head"><h2>2. 거주 지역</h2><span class="sub">하나 선택 · 주소를 받았으면 아래에서 찾으면 동이 자동으로 골라집니다</span></div>
+        <div class="addrrow">
+          <input class="txt" id="addr-q" placeholder="도로명 주소 (예: 장안벚꽃로 107)" value="${esc(S.addrQ||"")}" autocomplete="off">
+          <button class="btn" id="addr-btn">주소로 찾기</button>
+          <span class="hint">주소는 저장하지 않고 동만 저장합니다</span>
+        </div>
         <div class="chips big">${REGIONS.map(r=>chip("group",r.key,r.label,f.group===r.key)).join("")}</div>
         ${reg && reg.details.length ? `<div class="sublist"><span class="lbl">${esc(reg.key)} 상세 ${reg.req?"(필수)":"(선택)"}</span>
           <div class="chips">${reg.details.map(d=>chip("detail",d,d,f.detail===d,"sm")).join("")}</div></div>`:""}
@@ -874,6 +903,49 @@ function render(){
   if(S.view==="input") renderInput(); else if(S.view==="monthly") renderMonthly(); else if(S.view==="annual") renderAnnual(); else renderReferral();
 }
 
+// ---------- 도로명 주소 → 지역/동 ----------
+let postcodeP=null;
+function loadPostcode(){
+  if(window.daum && window.daum.Postcode) return Promise.resolve();
+  if(!postcodeP) postcodeP=new Promise((res,rej)=>{ const s=document.createElement("script"); s.src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"; s.onload=()=>res(); s.onerror=()=>{ postcodeP=null; rej(); }; document.head.appendChild(s); });
+  return postcodeP;
+}
+function addrToRegion(data){
+  const sido=String(data.sido||""), sgg=String(data.sigungu||""), b=String(data.bname||""), h=String(data.hname||"");
+  const R=k=>REGIONS.find(r=>r.key===k);
+  if(/^서울/.test(sido)){
+    if(sgg==="성동구"||sgg==="동대문구"){
+      const list=R(sgg).details; let d=normDong(sgg,b);
+      if(!list.includes(d) && h) d=normDong(sgg,h);
+      return {group:sgg, detail:list.includes(d)?d:""};
+    }
+    return {group:"서울 기타", detail:R("서울 기타").details.includes(sgg)?sgg:""};
+  }
+  if(/^경기/.test(sido)){ const city=sgg.split(" ")[0]; return {group:"경기도", detail:R("경기도").details.includes(city)?city:"경기 기타"}; }
+  return {group:"기타", detail:""};
+}
+async function openAddr(){
+  const q=($("#addr-q")&&$("#addr-q").value.trim())||"";
+  try{ await loadPostcode(); }catch(_){ toast("주소 검색을 불러오지 못했습니다. 인터넷 연결을 확인하고 다시 눌러 주세요."); return; }
+  const box=$("#addr-embed"); box.innerHTML=""; $("#addr-modal").hidden=false;
+  new window.daum.Postcode({ width:"100%", height:"100%",
+    oncomplete:(data)=>{
+      const r=addrToRegion(data);
+      S.form.group=r.group; S.form.detail=r.detail; S.addrQ="";
+      $("#addr-modal").hidden=true; render();
+      const where = rLabel(r.group)+(r.detail?" · "+r.detail:"");
+      toast(r.detail||r.group==="기타" ? where+"(으)로 골랐습니다" : where+"(으)로 골랐습니다. 상세 동은 직접 골라 주세요");
+    }
+  }).embed(box, {q, autoClose:false});
+}
+
+$("#addr-close").addEventListener("click",()=>{ $("#addr-modal").hidden=true; });
+$("#addr-modal").addEventListener("click",e=>{ if(e.target.id==="addr-modal") $("#addr-modal").hidden=true; });
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape" && !$("#addr-modal").hidden) $("#addr-modal").hidden=true;
+  if(e.key==="Enter" && e.target.id==="addr-q" && !e.isComposing){ e.preventDefault(); openAddr(); }
+});
+
 // ---------- 저장/삭제 ----------
 async function save(){
   const f=S.form; if(S.saving) return;
@@ -958,6 +1030,7 @@ document.addEventListener("click", e=>{
     render(); return;
   }
   if(t.id==="f-today"){ setToday(); return; }
+  if(t.id==="addr-btn"){ openAddr(); return; }
   // 소개 칸 (초진 입력 / 직접 등록 공용)
   if(t.dataset.rf){
     const st=S[t.dataset.k], a=t.dataset.rf;
@@ -1010,6 +1083,7 @@ document.addEventListener("input", e=>{
     if(k==="rf2"){ const b=$("#rf2-save"); if(b) b.disabled=rfStatus(S.rf2).s!=="ok"||S.refSaving; const s=$("#rf2-msg"); if(s) s.innerHTML=rf2Msg(); }
     return;
   }
+  if(el.id==="addr-q"){ S.addrQ=el.value; return; }
   if(el.id==="ref-search"){ S.refSearch=el.value; const r=$("#ref-search-results"); if(r) r.innerHTML=refSearchResults(); }
 });
 document.addEventListener("change", e=>{
