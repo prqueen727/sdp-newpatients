@@ -38,9 +38,11 @@ alter table public.visits enable row level security;
 drop policy if exists "staff read"   on public.visits;
 drop policy if exists "staff insert" on public.visits;
 drop policy if exists "staff delete" on public.visits;
+drop policy if exists "staff update" on public.visits;
 create policy "staff read"   on public.visits for select to authenticated using (public.is_staff());
 create policy "staff insert" on public.visits for insert to authenticated with check (public.is_staff());
 create policy "staff delete" on public.visits for delete to authenticated using (public.is_staff());
+create policy "staff update" on public.visits for update to authenticated using (public.is_staff()) with check (public.is_staff());
 
 -- ▼ 접속 허용 계정 (Authentication > Users 에 만든 계정과 이메일이 같아야 함)
 insert into public.staff (email, role) values
