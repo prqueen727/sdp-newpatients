@@ -267,7 +267,7 @@ const REGIONS = [
   {key:"기타", label:"기타 (인천·지방 등)", req:false, details:[]}
 ];
 const MOTIVES = ["지인 소개","간판","지나가다","전단지","거주지","버스광고","인터넷 검색","AI 검색","기타"];
-const CLINICS = ["도수치료","수술후 재활","주사/수액","한약/보약","다이어트","소화불량","여성질환","예방접종","척추질환","관절질환","안면마비","교통사고","기타"];
+const CLINICS = ["도수치료","수술후 재활","주사/수액","한약/보약","다이어트","소화불량","여성질환","예방접종","척추질환","관절질환","골절","안면마비","교통사고","기타"];
 const MOU = "협력기관(MOU)";
 const RELATIONS = ["가족","친구·지인","직장 동료","이웃","기존 환자끼리",MOU,"기타"];
 const REF_MOTIVE = "지인 소개";
@@ -471,7 +471,7 @@ function pickW(r, items, w){ let t=w.reduce((a,b)=>a+b,0), x=r()*t; for(let i=0;
 function sampleDocs(ym){
   const [y,m]=ym.split("-").map(Number); const r=rng(y*100+m*7919);
   const n=Math.round(95+r()*70), out=[];
-  const MW=[24,10,8,5,14,4,22,7,3], CW=[16,6,9,12,6,5,5,2,18,14,3,10,3];
+  const MW=[24,10,8,5,14,4,22,7,3], CW=[16,6,9,12,6,5,5,2,18,14,4,3,10,3];
   for(let i=0;i<n;i++){
     const g=pickW(r,RKEYS,[46,24,15,10,5]); const reg=REGIONS.find(x=>x.key===g);
     const det = reg.details.length && (reg.req || r()<.7) ? reg.details[Math.floor(Math.pow(r(),1.6)*reg.details.length)] : "";
